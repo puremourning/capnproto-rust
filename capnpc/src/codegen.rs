@@ -1999,6 +1999,10 @@ fn generate_node(
     }
 
     match node_reader.which()? {
+        node::Type(Ok(_t)) => {}
+        node::Type(Err(e)) => {
+            return Err(Error::failed(format!("error reading node type: {e}")));
+        }
         node::File(()) => {
             output.push(Branch(nested_output));
         }
@@ -3032,7 +3036,7 @@ fn generate_node(
                                     let type_string = typ.type_string(ctx, Leaf::Owned)?;
                                     Line(format!(
                                         "pub const {}: {} = {}::{};",
-                                        styled_name, &type_string, &type_string, variant
+                                        styled_name, type_string, type_string, variant
                                     ))
                                 } else {
                                     return Err(Error::failed(format!(
