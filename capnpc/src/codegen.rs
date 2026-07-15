@@ -648,6 +648,65 @@ fn prim_default(value: &schema_capnp::value::Reader) -> ::capnp::Result<Option<S
     }
 }
 
+// A primitive default *value* (not the mask) as a Rust expression, in the context of the field's
+// type. Used for the unmapped-leaf read in the erased carrier: an unmapped `@[...]` leaf reads its
+// default (matching C++'s `unmask<T>(0, mask)`), and the sentinel offset must not be dereferenced.
+fn prim_default_value(value: &schema_capnp::value::Reader) -> ::capnp::Result<String> {
+    use capnp::schema_capnp::value;
+    Ok(match value.which()? {
+        value::Bool(b) => b.to_string(),
+        value::Int8(i) => i.to_string(),
+        value::Int16(i) => i.to_string(),
+        value::Int32(i) => i.to_string(),
+        value::Int64(i) => i.to_string(),
+        value::Uint8(i) => i.to_string(),
+        value::Uint16(i) => i.to_string(),
+        value::Uint32(i) => i.to_string(),
+        value::Uint64(i) => i.to_string(),
+        value::Float32(f) => format!("f32::from_bits({}u32)", f.to_bits()),
+        value::Float64(f) => format!("f64::from_bits({}u64)", f.to_bits()),
+        _ => {
+            return Err(Error::failed(
+                "expected a primitive default value".to_string(),
+            ))
+        }
+    })
+}
+
+// True if a field is a scalar data field (read via `get_data_field`): a bool or fixed-width
+// integer/float. Such an accessor needs an explicit sentinel guard for an unmapped leaf, because
+// the out-of-range offset would overflow the bounds check on a 32-bit target. Pointer reads are
+// naturally safe (an out-of-range pointer index returns a null/default reader).
+fn is_scalar_data_field(field: &schema_capnp::field::Reader) -> ::capnp::Result<bool> {
+    use capnp::schema_capnp::*;
+    let field::Slot(s) = field.which()? else {
+        return Ok(false);
+    };
+    Ok(matches!(
+        s.get_type()?.which()?,
+        type_::Bool(())
+            | type_::Int8(())
+            | type_::Int16(())
+            | type_::Int32(())
+            | type_::Int64(())
+            | type_::Uint8(())
+            | type_::Uint16(())
+            | type_::Uint32(())
+            | type_::Uint64(())
+            | type_::Float32(())
+            | type_::Float64(())
+    ))
+}
+
+// Sentinel guard for an erased *builder* mutator writing at leaf `idx`: panic if the leaf is
+// unmapped (matching C++'s `KJ_REQUIRE`). The builder's raw writes are not bounds-checked, so
+// without this an unmapped `@[...]` set would be UB rather than a clean error.
+fn unmapped_panic(idx: usize, field_name: &str) -> String {
+    format!(
+        "if self.offsets[{idx}] == 0xffff_ffffu32 {{ panic!(\"field '{field_name}' is not mapped at this use site\"); }}"
+    )
+}
+
 // Gets the full list ordered of generic parameters for a node. Outer scopes come first.
 fn get_params(ctx: &GeneratorContext, mut node_id: u64) -> ::capnp::Result<Vec<String>> {
     let mut result = Vec::new();
@@ -675,6 +734,19 @@ pub fn getter_text(
     field: &schema_capnp::field::Reader,
     is_reader: bool,
     is_fn: bool,
+) -> ::capnp::Result<(String, FormattedText, Option<FormattedText>)> {
+    getter_text_at(ctx, field, is_reader, is_fn, None)
+}
+
+// Like `getter_text`, but `offset_override`, when set, is used verbatim as the slot's offset
+// expression instead of the field's baked literal. The erased `AnyReader`/`AnyBuilder` pass
+// `self.offsets[i] as usize` so one type can serve every use site off a runtime offset table.
+fn getter_text_at(
+    ctx: &GeneratorContext,
+    field: &schema_capnp::field::Reader,
+    is_reader: bool,
+    is_fn: bool,
+    offset_override: Option<&str>,
 ) -> ::capnp::Result<(String, FormattedText, Option<FormattedText>)> {
     use capnp::schema_capnp::*;
 
@@ -709,7 +781,10 @@ pub fn getter_text(
         }
         field::Slot(reg_field) => {
             let mut default_decl = None;
-            let offset = reg_field.get_offset() as usize;
+            let offset: String = match offset_override {
+                Some(e) => e.to_string(),
+                None => (reg_field.get_offset() as usize).to_string(),
+            };
             let module_string = if is_reader { "Reader" } else { "Builder" };
             let module = if is_reader {
                 Leaf::Reader("'a")
@@ -721,7 +796,7 @@ pub fn getter_text(
             fn primitive_case<T: PartialEq + ::std::fmt::Display>(
                 typ: &str,
                 member: &str,
-                offset: usize,
+                offset: &str,
                 default: T,
                 zero: T,
             ) -> String {
@@ -789,25 +864,25 @@ pub fn getter_text(
                         format!("self.{member}.get_bool_field({offset})")
                     }
                 }
-                (type_::Int8(()), value::Int8(i)) => primitive_case(&typ, &member, offset, i, 0),
-                (type_::Int16(()), value::Int16(i)) => primitive_case(&typ, &member, offset, i, 0),
-                (type_::Int32(()), value::Int32(i)) => primitive_case(&typ, &member, offset, i, 0),
-                (type_::Int64(()), value::Int64(i)) => primitive_case(&typ, &member, offset, i, 0),
-                (type_::Uint8(()), value::Uint8(i)) => primitive_case(&typ, &member, offset, i, 0),
+                (type_::Int8(()), value::Int8(i)) => primitive_case(&typ, &member, &offset, i, 0),
+                (type_::Int16(()), value::Int16(i)) => primitive_case(&typ, &member, &offset, i, 0),
+                (type_::Int32(()), value::Int32(i)) => primitive_case(&typ, &member, &offset, i, 0),
+                (type_::Int64(()), value::Int64(i)) => primitive_case(&typ, &member, &offset, i, 0),
+                (type_::Uint8(()), value::Uint8(i)) => primitive_case(&typ, &member, &offset, i, 0),
                 (type_::Uint16(()), value::Uint16(i)) => {
-                    primitive_case(&typ, &member, offset, i, 0)
+                    primitive_case(&typ, &member, &offset, i, 0)
                 }
                 (type_::Uint32(()), value::Uint32(i)) => {
-                    primitive_case(&typ, &member, offset, i, 0)
+                    primitive_case(&typ, &member, &offset, i, 0)
                 }
                 (type_::Uint64(()), value::Uint64(i)) => {
-                    primitive_case(&typ, &member, offset, i, 0)
+                    primitive_case(&typ, &member, &offset, i, 0)
                 }
                 (type_::Float32(()), value::Float32(f)) => {
-                    primitive_case(&typ, &member, offset, f.to_bits(), 0)
+                    primitive_case(&typ, &member, &offset, f.to_bits(), 0)
                 }
                 (type_::Float64(()), value::Float64(f)) => {
-                    primitive_case(&typ, &member, offset, f.to_bits(), 0)
+                    primitive_case(&typ, &member, &offset, f.to_bits(), 0)
                 }
                 (type_::Enum(_), value::Enum(d)) => {
                     if d == 0 {
@@ -983,12 +1058,68 @@ fn zero_fields_of_group(
     }
 }
 
-fn generate_setter(
+// One builder mutator (a `set_`, `init_`, or `initn_` method), split into its signature pieces
+// and body so both the inherent `impl` and a newtype's Builder trait can be generated from a
+// single source. `receiver`/`params`/`ret` compose the signature; `delegate_args` names the
+// arguments a trait impl forwards when delegating to the inherent method.
+struct SetterMethod {
+    name: String,
+    receiver: String,
+    params: String,
+    ret: String,
+    body: FormattedText,
+    delegate_args: String,
+}
+
+impl SetterMethod {
+    // The signature as it appears after `fn`, e.g. `set_foo(&mut self, value: i32)`. `bind_mut`
+    // keeps a `mut self` receiver (the inherent body needs it); a delegating trait impl passes
+    // false since it never mutates `self` locally.
+    fn signature(&self, bind_mut: bool) -> String {
+        let receiver = if bind_mut {
+            self.receiver.clone()
+        } else {
+            self.receiver.trim_start_matches("mut ").to_string()
+        };
+        let args = if self.params.is_empty() {
+            receiver
+        } else {
+            format!("{receiver}, {}", self.params)
+        };
+        let ret = if self.ret.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", self.ret)
+        };
+        format!("{}({args}){ret}", self.name)
+    }
+}
+
+fn setter_methods(
     ctx: &GeneratorContext,
     discriminant_offset: u32,
     styled_name: &str,
     field: &schema_capnp::field::Reader,
-) -> ::capnp::Result<FormattedText> {
+) -> ::capnp::Result<Vec<SetterMethod>> {
+    setter_methods_at(
+        ctx,
+        &(discriminant_offset as usize).to_string(),
+        styled_name,
+        field,
+        None,
+    )
+}
+
+// Like `setter_methods`, but with the discriminant offset and (via `offset_override`) the slot
+// offset given as expressions, so the erased `AnyBuilder` can write at `self.offsets[i]` /
+// `self.disc_offset` instead of baked literals.
+fn setter_methods_at(
+    ctx: &GeneratorContext,
+    disc_offset: &str,
+    styled_name: &str,
+    field: &schema_capnp::field::Reader,
+    offset_override: Option<&str>,
+) -> ::capnp::Result<Vec<SetterMethod>> {
     use capnp::schema_capnp::*;
 
     let mut setter_interior = Vec::new();
@@ -1002,18 +1133,18 @@ fn generate_setter(
     if discriminant_value != field::NO_DISCRIMINANT {
         setter_interior.push(Line(format!(
             "self.builder.set_data_field::<u16>({}, {});",
-            discriminant_offset as usize, discriminant_value as usize
+            disc_offset, discriminant_value as usize
         )));
         let init_discrim = Line(format!(
             "self.builder.set_data_field::<u16>({}, {});",
-            discriminant_offset as usize, discriminant_value as usize
+            disc_offset, discriminant_value as usize
         ));
         initter_interior.push(init_discrim.clone());
         initn_interior.push(init_discrim);
     }
 
     let mut return_result = false;
-    let mut result = Vec::new();
+    let mut methods: Vec<SetterMethod> = Vec::new();
 
     let (maybe_reader_type, maybe_builder_type): (Option<String>, Option<String>) = match field
         .which()?
@@ -1039,7 +1170,10 @@ fn generate_setter(
             (None, Some(format!("{the_mod}::Builder<'a{params_string}>")))
         }
         field::Slot(reg_field) => {
-            let offset = reg_field.get_offset() as usize;
+            let offset: String = match offset_override {
+                Some(e) => e.to_string(),
+                None => (reg_field.get_offset() as usize).to_string(),
+            };
             let typ = reg_field.get_type()?;
             match typ.which().expect("unrecognized type") {
                 type_::Void(()) => {
@@ -1196,15 +1330,17 @@ fn generate_setter(
 
                         let builder_type = typ.type_string(ctx, Leaf::Builder("'a"))?;
 
-                        result.push(line("#[inline]"));
-                        result.push(Line(format!(
-                            "pub fn initn_{styled_name}(self, length: u32) -> {builder_type} {{"
-                        )));
-                        result.push(indent(initn_interior));
-                        result.push(indent(
-                            Line(fmt!(ctx,"{capnp}::any_pointer::Builder::new(self.builder.get_pointer_field({offset})).initn_as(length)")))
-                        );
-                        result.push(line("}"));
+                        methods.push(SetterMethod {
+                            name: format!("initn_{styled_name}"),
+                            receiver: "self".into(),
+                            params: "length: u32".into(),
+                            ret: format!("-> {builder_type}"),
+                            body: Branch(vec![
+                                Branch(initn_interior),
+                                Line(fmt!(ctx,"{capnp}::any_pointer::Builder::new(self.builder.get_pointer_field({offset})).initn_as(length)")),
+                            ]),
+                            delegate_args: "length".into(),
+                        });
 
                         (
                             Some(fmt!(
@@ -1226,26 +1362,49 @@ fn generate_setter(
         }
     };
     if let Some(reader_type) = maybe_reader_type {
-        let return_type = if return_result {
+        let ret = if return_result {
             fmt!(ctx, "-> {capnp}::Result<()>")
         } else {
-            "".into()
+            String::new()
         };
-        result.push(line("#[inline]"));
-        result.push(Line(format!(
-            "pub fn set_{styled_name}(&mut self, {setter_param}: {reader_type}) {return_type} {{"
-        )));
-        result.push(indent(setter_interior));
-        result.push(line("}"));
+        methods.push(SetterMethod {
+            name: format!("set_{styled_name}"),
+            receiver: "&mut self".into(),
+            params: format!("{setter_param}: {reader_type}"),
+            ret,
+            body: Branch(setter_interior),
+            delegate_args: setter_param.clone(),
+        });
     }
     if let Some(builder_type) = maybe_builder_type {
+        let arg_names: Vec<&str> = initter_params
+            .iter()
+            .map(|p| p.split(':').next().unwrap_or("").trim())
+            .collect();
+        methods.push(SetterMethod {
+            name: format!("init_{styled_name}"),
+            receiver: if initter_mut { "mut self" } else { "self" }.into(),
+            params: initter_params.join(", "),
+            ret: format!("-> {builder_type}"),
+            body: Branch(initter_interior),
+            delegate_args: arg_names.join(", "),
+        });
+    }
+    Ok(methods)
+}
+
+// Assembles the inherent builder mutators for a field from `setter_methods`.
+fn generate_setter(
+    ctx: &GeneratorContext,
+    discriminant_offset: u32,
+    styled_name: &str,
+    field: &schema_capnp::field::Reader,
+) -> ::capnp::Result<FormattedText> {
+    let mut result = Vec::new();
+    for m in setter_methods(ctx, discriminant_offset, styled_name, field)? {
         result.push(line("#[inline]"));
-        let args = initter_params.join(", ");
-        let mutable = if initter_mut { "mut " } else { "" };
-        result.push(Line(format!(
-            "pub fn init_{styled_name}({mutable}self, {args}) -> {builder_type} {{"
-        )));
-        result.push(indent(initter_interior));
+        result.push(Line(format!("pub fn {} {{", m.signature(true))));
+        result.push(indent(m.body));
         result.push(line("}"));
     }
     Ok(Branch(result))
@@ -1981,6 +2140,1182 @@ fn get_ty_params_of_brand_helper(
     Ok(())
 }
 
+// A `type` newtype declaration (`type Vec3 = group { ... }`) is represented as a `type` node
+// whose target is a struct pointing at a template node the newtype owns (its `scope_id` is the
+// `type` node). We give such a newtype a semantic trait -- `vec3::Reader` -- so every use site
+// shares one name. Returns the template node's id when `alias_id` is an inline group/union
+// newtype all of whose fields are slots (a "flat" newtype we can currently express as a trait);
+// nested newtype members would need associated types and are handled separately.
+fn newtype_template_id(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+) -> ::capnp::Result<Option<u64>> {
+    use capnp::schema_capnp::*;
+    let Some(alias) = ctx.node_map.get(&alias_id) else {
+        return Ok(None);
+    };
+    let node::Type(Ok(t)) = alias.which()? else {
+        return Ok(None);
+    };
+    let type_::Struct(st) = t.which()? else {
+        return Ok(None); // scalar newtype -- rendered via its underlying type
+    };
+    let template_id = st.get_type_id();
+    let Some(template) = ctx.node_map.get(&template_id) else {
+        return Ok(None);
+    };
+    if template.get_scope_id() != alias_id {
+        return Ok(None); // aliases a pre-existing struct, not an owned inline template
+    }
+    Ok(Some(template_id))
+}
+
+// A non-union group newtype. Its fields are slots and/or nested-newtype members (group fields
+// carrying a `Field.typeId`, surfaced as associated types). A plain anonymous group field is not
+// yet supported.
+fn group_newtype_template_id(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+) -> ::capnp::Result<Option<u64>> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
+        return Ok(None);
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(None);
+    };
+    if tmpl.get_discriminant_count() > 0 {
+        return Ok(None); // union newtype -- handled separately
+    }
+    for field in tmpl.get_fields()? {
+        if let field::Group(_) = field.which()? {
+            if field.get_type_id() == 0 {
+                return Ok(None); // anonymous group member -- not a newtype, deferred
+            }
+        }
+    }
+    Ok(Some(template_id))
+}
+
+// A union newtype. Slot arms have use-site-independent `Which` payloads; a group arm is a nested
+// newtype, surfaced through an associated type. An anonymous group arm is not yet supported.
+fn union_newtype_template_id(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+) -> ::capnp::Result<Option<u64>> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
+        return Ok(None);
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(None);
+    };
+    if tmpl.get_discriminant_count() == 0 {
+        return Ok(None); // not a union
+    }
+    for field in tmpl.get_fields()? {
+        if let field::Group(_) = field.which()? {
+            if field.get_type_id() == 0 {
+                return Ok(None); // anonymous group arm -- not a newtype, deferred
+            }
+        }
+    }
+    Ok(Some(template_id))
+}
+
+// One method of a newtype's Reader/Builder trait: its signature (the text after `fn`) plus how a
+// delegating impl forwards to the inherent accessor. Reader getters take `&self`, but the inherent
+// reader accessor consumes `self` (readers are `Copy`), so they forward through `(*self)`.
+struct TraitMethod {
+    signature: String,
+    call_name: String,
+    call_args: String,
+    deref_self: bool,
+}
+
+// The Reader- or Builder-side trait methods mirroring one template field's inherent accessors:
+// a getter (both sides), the mutators (Builder side), and `has_` for a pointer field (both sides).
+fn newtype_trait_methods(
+    ctx: &GeneratorContext,
+    field: &schema_capnp::field::Reader,
+    is_reader: bool,
+    include_getter: bool,
+) -> ::capnp::Result<Vec<TraitMethod>> {
+    use capnp::schema_capnp::*;
+    let name = camel_to_snake_case(field.get_name()?.to_str()?);
+    let is_pointer = match field.which()? {
+        field::Slot(s) => s.get_type()?.is_pointer()?,
+        field::Group(_) => false,
+    };
+    let mut methods = Vec::new();
+
+    // Union arms have no inherent getter -- they are read through `which()` -- so unions pass
+    // include_getter = false; a delegating getter would just recurse.
+    if is_reader {
+        if include_getter {
+            let (ret, _, _) = getter_text(ctx, field, true, true)?;
+            methods.push(TraitMethod {
+                signature: format!("get_{name}(&self) {ret}"),
+                call_name: format!("get_{name}"),
+                call_args: String::new(),
+                deref_self: true,
+            });
+        }
+    } else {
+        if include_getter {
+            // Builder getters consume `self` (they hand out the child builder), matching the
+            // inherent accessor, so no deref.
+            let (ret, _, _) = getter_text(ctx, field, false, true)?;
+            methods.push(TraitMethod {
+                signature: format!("get_{name}(self) {ret}"),
+                call_name: format!("get_{name}"),
+                call_args: String::new(),
+                deref_self: false,
+            });
+        }
+        for m in setter_methods(ctx, 0, &name, field)? {
+            methods.push(TraitMethod {
+                signature: m.signature(false),
+                call_name: m.name,
+                call_args: m.delegate_args,
+                deref_self: false,
+            });
+        }
+    }
+    if is_pointer {
+        methods.push(TraitMethod {
+            signature: format!("has_{name}(&self) -> bool"),
+            call_name: format!("has_{name}"),
+            call_args: String::new(),
+            deref_self: false,
+        });
+    }
+    Ok(methods)
+}
+
+// Emits the trait module for a newtype: a flat group (`generate_flat_newtype_trait`) or a union
+// (`generate_union_newtype_trait`). Exactly one applies (or neither); each no-ops otherwise.
+fn generate_newtype_trait(
+    ctx: &GeneratorContext,
+    node_id: u64,
+    node_name: &str,
+) -> ::capnp::Result<FormattedText> {
+    Ok(Branch(vec![
+        generate_group_newtype_trait(ctx, node_id, node_name)?,
+        generate_union_newtype_trait(ctx, node_id, node_name)?,
+    ]))
+}
+
+// Recursive leaf count of a newtype template: a slot is one leaf; a nested-newtype member expands
+// to its own leaves. The erased carrier uses this to slice its offset table.
+fn count_newtype_leaves(ctx: &GeneratorContext, template_id: u64) -> ::capnp::Result<usize> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(0);
+    };
+    let mut n = 0;
+    for field in tmpl.get_fields()? {
+        match field.which()? {
+            field::Slot(_) => n += 1,
+            field::Group(_) => {
+                if let Some(nested) = newtype_template_id(ctx, field.get_type_id())? {
+                    n += count_newtype_leaves(ctx, nested)?;
+                }
+            }
+        }
+    }
+    Ok(n)
+}
+
+// Collects a use site's leaf offsets in template (tree) order, recursing through nested-newtype
+// members, matching the instance's fields to the template by name. A leaf absent from the instance
+// (an incomplete `@[...]`) gets the sentinel `0xffff_ffff`.
+fn collect_leaf_offsets(
+    ctx: &GeneratorContext,
+    template_id: u64,
+    instance_id: u64,
+    out: &mut Vec<String>,
+) -> ::capnp::Result<()> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(());
+    };
+    let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
+        return Ok(());
+    };
+    let mut inst_fields = ::std::collections::HashMap::new();
+    for f in instance.get_fields()? {
+        inst_fields.insert(f.get_name()?.to_str()?.to_string(), f);
+    }
+    for field in tmpl.get_fields()? {
+        let raw = field.get_name()?.to_str()?;
+        match field.which()? {
+            field::Slot(_) => match inst_fields.get(raw).map(|f| f.which()) {
+                Some(Ok(field::Slot(s))) => out.push(s.get_offset().to_string()),
+                _ => out.push("0xffff_ffff".to_string()),
+            },
+            field::Group(_) => {
+                let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+                    continue;
+                };
+                match inst_fields.get(raw).map(|f| f.which()) {
+                    Some(Ok(field::Group(ig))) => {
+                        collect_leaf_offsets(ctx, nested_tmpl, ig.get_type_id(), out)?
+                    }
+                    _ => {
+                        for _ in 0..count_newtype_leaves(ctx, nested_tmpl)? {
+                            out.push("0xffff_ffff".to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// The erased carrier for a (non-union) group newtype: a concrete `AnyReader<'a>` holding a
+// `StructReader` plus a runtime offset table, so one type serves every use site (unlike `&dyn`).
+// A slot accessor indexes `self.offsets[i]` via `getter_text_at`; a nested-newtype member returns
+// the member's own `AnyReader` over a sub-slice of the table. It impls the newtype's `Reader`
+// trait, so `impl Reader` bounds accept both the concrete per-site type and the erased form.
+fn any_reader_items(
+    ctx: &GeneratorContext,
+    template_id: u64,
+) -> ::capnp::Result<Vec<FormattedText>> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(vec![]);
+    };
+    if tmpl.get_discriminant_count() > 0 {
+        return Ok(vec![]); // union newtype -- separate carrier
+    }
+
+    let mut inherent = Vec::new();
+    let mut trait_methods = Vec::new();
+    let mut defaults = Vec::new();
+    let mut cursor = 0usize;
+    for field in tmpl.get_fields()? {
+        let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        if let field::Group(_) = field.which()? {
+            let assoc = capitalize_first_letter(field.get_name()?.to_str()?);
+            let nested_mod = ctx.get_qualified_module(field.get_type_id());
+            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+                return Ok(vec![]);
+            };
+            let count = count_newtype_leaves(ctx, nested_tmpl)?;
+            let (start, end) = (cursor, cursor + count);
+            inherent.push(Line(format!(
+                "pub fn get_{name}(&self) -> {nested_mod}::AnyReader<'a> {{ {nested_mod}::AnyReader::new(self.reader, &self.offsets[{start}..{end}]) }}"
+            )));
+            trait_methods.push(Line(format!("type {assoc} = {nested_mod}::AnyReader<'a>;")));
+            trait_methods.push(Line(format!(
+                "fn get_{name}(&self) -> Self::{assoc} {{ self.get_{name}() }}"
+            )));
+            cursor += count;
+        } else {
+            let off = format!("self.offsets[{cursor}] as usize");
+            let (ret, mut body, def) = getter_text_at(ctx, &field, true, true, Some(&off))?;
+            if let Some(d) = def {
+                defaults.push(d);
+            }
+            // An unmapped leaf (sentinel offset) reads its default rather than dereferencing the
+            // sentinel -- matching C++, and 32-bit-safe (the out-of-range read would overflow).
+            if is_scalar_data_field(&field)? {
+                if let (field::Slot(s), FormattedText::Line(expr)) = (field.which()?, &body) {
+                    let expr = expr.clone();
+                    let dflt = prim_default_value(&s.get_default_value()?)?;
+                    body = Line(format!(
+                        "if self.offsets[{cursor}] == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
+                    ));
+                }
+            }
+            inherent.push(Line(format!("pub fn get_{name}(&self) {ret} {{")));
+            inherent.push(indent(body));
+            inherent.push(line("}"));
+            trait_methods.push(Line(format!("fn get_{name}(&self) {ret} {{ self.get_{name}() }}")));
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    inherent.push(Line(format!(
+                        "pub fn has_{name}(&self) -> bool {{ !self.reader.get_pointer_field(self.offsets[{cursor}] as usize).is_null() }}"
+                    )));
+                    trait_methods.push(Line(format!(
+                        "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
+                    )));
+                }
+            }
+            cursor += 1;
+        }
+    }
+
+    let sr = fmt!(ctx, "{capnp}::private::layout::StructReader<'a>");
+    let mut items = vec![
+        BlankLine,
+        line("#[derive(Clone, Copy)]"),
+        Line(format!(
+            "pub struct AnyReader<'a> {{ reader: {sr}, offsets: &'a [u32] }}"
+        )),
+        line("impl<'a> AnyReader<'a> {"),
+        indent(vec![
+            Line(format!(
+                "pub fn new(reader: {sr}, offsets: &'a [u32]) -> Self {{ AnyReader {{ reader, offsets }} }}"
+            )),
+            Branch(inherent),
+        ]),
+        line("}"),
+        line("impl<'a> Reader<'a> for AnyReader<'a> {"),
+        indent(trait_methods),
+        line("}"),
+    ];
+    if !defaults.is_empty() {
+        items.push(line("mod _private {"));
+        items.push(indent(defaults));
+        items.push(line("}"));
+    }
+    Ok(items)
+}
+
+// The erased carrier for a union newtype: like `AnyReader` but with a runtime discriminant offset.
+// `which()` reads the discriminant and builds the shared `Which`, with a group arm yielding the
+// member's own `AnyReader` over an offset sub-slice -- so the erased union unifies across use sites
+// (which `&dyn` cannot, given the arm associated types).
+fn union_any_reader_items(
+    ctx: &GeneratorContext,
+    template_id: u64,
+) -> ::capnp::Result<Vec<FormattedText>> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(vec![]);
+    };
+    if tmpl.get_discriminant_count() == 0 {
+        return Ok(vec![]);
+    }
+
+    let mut arms = Vec::new();
+    let mut assoc = Vec::new();
+    let mut group_variants = Vec::new();
+    let mut which_type_params = Vec::new();
+    let mut has_inherent = Vec::new();
+    let mut has_trait = Vec::new();
+    let mut needs_lifetime = false;
+    let mut cursor = 0usize;
+    for field in tmpl.get_fields()? {
+        let variant = capitalize_first_letter(field.get_name()?.to_str()?);
+        let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        let dvalue = field.get_discriminant_value();
+        if let field::Group(_) = field.which()? {
+            let nested_mod = ctx.get_qualified_module(field.get_type_id());
+            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+                return Ok(vec![]);
+            };
+            let count = count_newtype_leaves(ctx, nested_tmpl)?;
+            let (start, end) = (cursor, cursor + count);
+            arms.push(Line(format!(
+                "{dvalue} => ::core::result::Result::Ok(Which::{variant}({nested_mod}::AnyReader::new(self.reader, &self.offsets[{start}..{end}]))),"
+            )));
+            assoc.push(Line(format!("type {variant} = {nested_mod}::AnyReader<'a>;")));
+            group_variants.push(variant.clone());
+            which_type_params.push(format!("{nested_mod}::AnyReader<'a>"));
+            cursor += count;
+        } else {
+            let off = format!("self.offsets[{cursor}] as usize");
+            let (_, getter_code, _) = getter_text_at(ctx, &field, true, false, Some(&off))?;
+            let FormattedText::Line(payload) = getter_code else {
+                return Ok(vec![]); // option-wrapped arm -- unsupported in the erased union for now
+            };
+            arms.push(Line(format!(
+                "{dvalue} => ::core::result::Result::Ok(Which::{variant}({payload})),"
+            )));
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    needs_lifetime = true;
+                    has_inherent.push(Line(format!(
+                        "pub fn has_{name}(&self) -> bool {{ if self.reader.get_data_field::<u16>(self.disc_offset as usize) != {dvalue} {{ return false; }} !self.reader.get_pointer_field(self.offsets[{cursor}] as usize).is_null() }}"
+                    )));
+                    has_trait.push(Line(format!(
+                        "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
+                    )));
+                }
+            }
+            cursor += 1;
+        }
+    }
+    arms.push(line(
+        "x => ::core::result::Result::Err(::capnp::NotInSchema(x)),",
+    ));
+
+    let inherent_ret = union_which_generics(needs_lifetime, &which_type_params);
+    let self_ret = union_which_generics(
+        needs_lifetime,
+        &group_variants
+            .iter()
+            .map(|v| format!("Self::{v}"))
+            .collect::<Vec<_>>(),
+    );
+
+    let sr = fmt!(ctx, "{capnp}::private::layout::StructReader<'a>");
+    let which_method = Branch(vec![
+        Line(format!(
+            "pub fn which(&self) -> ::core::result::Result<Which{inherent_ret}, ::capnp::NotInSchema> {{"
+        )),
+        indent(vec![
+            line("match self.reader.get_data_field::<u16>(self.disc_offset as usize) {"),
+            indent(arms),
+            line("}"),
+        ]),
+        line("}"),
+    ]);
+
+    let mut trait_items = assoc;
+    trait_items.push(Line(format!(
+        "fn which(&self) -> ::core::result::Result<Which{self_ret}, ::capnp::NotInSchema> {{ self.which() }}"
+    )));
+    trait_items.extend(has_trait);
+
+    Ok(vec![
+        BlankLine,
+        line("#[derive(Clone, Copy)]"),
+        Line(format!(
+            "pub struct AnyReader<'a> {{ reader: {sr}, disc_offset: u32, offsets: &'a [u32] }}"
+        )),
+        line("impl<'a> AnyReader<'a> {"),
+        indent(vec![
+            Line(format!(
+                "pub fn new(reader: {sr}, disc_offset: u32, offsets: &'a [u32]) -> Self {{ AnyReader {{ reader, disc_offset, offsets }} }}"
+            )),
+            which_method,
+            Branch(has_inherent),
+        ]),
+        line("}"),
+        line("impl<'a> Reader<'a> for AnyReader<'a> {"),
+        indent(trait_items),
+        line("}"),
+    ])
+}
+
+// The erased mutable carrier for a (non-union) group newtype: `AnyBuilder<'a>` over a
+// `StructBuilder` and a runtime offset table. Setters/init write at `self.offsets[i]`; a
+// nested-newtype member yields the member's own `AnyBuilder` over a sub-slice.
+fn any_builder_items(
+    ctx: &GeneratorContext,
+    template_id: u64,
+) -> ::capnp::Result<Vec<FormattedText>> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(vec![]);
+    };
+    if tmpl.get_discriminant_count() > 0 {
+        return Ok(vec![]); // union AnyBuilder -- deferred
+    }
+
+    let mut inherent = Vec::new();
+    let mut trait_methods = Vec::new();
+    let mut cursor = 0usize;
+    for field in tmpl.get_fields()? {
+        let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        if let field::Group(_) = field.which()? {
+            let assoc = capitalize_first_letter(field.get_name()?.to_str()?);
+            let nested_mod = ctx.get_qualified_module(field.get_type_id());
+            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+                return Ok(vec![]);
+            };
+            let count = count_newtype_leaves(ctx, nested_tmpl)?;
+            let (start, end) = (cursor, cursor + count);
+            for verb in ["get", "init"] {
+                inherent.push(Line(format!(
+                    "pub fn {verb}_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ {nested_mod}::AnyBuilder::new(self.builder, &self.offsets[{start}..{end}]) }}"
+                )));
+            }
+            trait_methods.push(Line(format!("type {assoc} = {nested_mod}::AnyBuilder<'a>;")));
+            trait_methods.push(Line(format!(
+                "fn get_{name}(self) -> Self::{assoc} {{ self.get_{name}() }}"
+            )));
+            trait_methods.push(Line(format!(
+                "fn init_{name}(self) -> Self::{assoc} {{ self.init_{name}() }}"
+            )));
+            cursor += count;
+        } else {
+            let off = format!("self.offsets[{cursor}] as usize");
+            let guard = unmapped_panic(cursor, &name);
+            // Builder getter: a scalar reads its default at the sentinel; a pointer getter panics
+            // (the builder read is unchecked and there's no empty builder to return).
+            let (ret, body, _) = getter_text_at(ctx, &field, false, true, Some(&off))?;
+            let get_body = if is_scalar_data_field(&field)? {
+                if let field::Slot(s) = field.which()? {
+                    if let FormattedText::Line(expr) = &body {
+                        let expr = expr.clone();
+                        let dflt = prim_default_value(&s.get_default_value()?)?;
+                        Line(format!(
+                            "if self.offsets[{cursor}] == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
+                        ))
+                    } else {
+                        body
+                    }
+                } else {
+                    body
+                }
+            } else {
+                Branch(vec![Line(guard.clone()), body])
+            };
+            inherent.push(Line(format!("pub fn get_{name}(self) {ret} {{")));
+            inherent.push(indent(get_body));
+            inherent.push(line("}"));
+            trait_methods.push(Line(format!("fn get_{name}(self) {ret} {{ self.get_{name}() }}")));
+            for m in setter_methods_at(ctx, "0", &name, &field, Some(&off))? {
+                let sig_inherent = m.signature(true);
+                let sig_trait = m.signature(false);
+                let call = format!("self.{}({})", m.name, m.delegate_args);
+                inherent.push(Line(format!("pub fn {sig_inherent} {{")));
+                inherent.push(indent(Branch(vec![Line(guard.clone()), m.body])));
+                inherent.push(line("}"));
+                trait_methods.push(Line(format!("fn {sig_trait} {{ {call} }}")));
+            }
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    inherent.push(Line(format!(
+                        "pub fn has_{name}(&self) -> bool {{ if self.offsets[{cursor}] == 0xffff_ffffu32 {{ return false; }} !self.builder.is_pointer_field_null(self.offsets[{cursor}] as usize) }}"
+                    )));
+                    trait_methods.push(Line(format!(
+                        "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
+                    )));
+                }
+            }
+            cursor += 1;
+        }
+    }
+
+    let sb = fmt!(ctx, "{capnp}::private::layout::StructBuilder<'a>");
+    Ok(vec![
+        BlankLine,
+        Line(format!(
+            "pub struct AnyBuilder<'a> {{ builder: {sb}, offsets: &'a [u32] }}"
+        )),
+        line("impl<'a> AnyBuilder<'a> {"),
+        indent(vec![
+            Line(format!(
+                "pub fn new(builder: {sb}, offsets: &'a [u32]) -> Self {{ AnyBuilder {{ builder, offsets }} }}"
+            )),
+            Branch(inherent),
+        ]),
+        line("}"),
+        line("impl<'a> Builder<'a> for AnyBuilder<'a> {"),
+        indent(trait_methods),
+        line("}"),
+    ])
+}
+
+// The erased mutable carrier for a union newtype: `AnyBuilder` with a runtime discriminant offset.
+// Each arm setter writes the discriminant at `self.disc_offset` (via `setter_methods_at`); a group
+// arm's `init_` writes it then hands out the member's own `AnyBuilder` over an offset sub-slice.
+fn union_any_builder_items(
+    ctx: &GeneratorContext,
+    template_id: u64,
+) -> ::capnp::Result<Vec<FormattedText>> {
+    use capnp::schema_capnp::*;
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(vec![]);
+    };
+    if tmpl.get_discriminant_count() == 0 {
+        return Ok(vec![]);
+    }
+
+    let mut inherent = Vec::new();
+    let mut assoc = Vec::new();
+    let mut trait_methods = Vec::new();
+    let mut cursor = 0usize;
+    for field in tmpl.get_fields()? {
+        let variant = capitalize_first_letter(field.get_name()?.to_str()?);
+        let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        let dvalue = field.get_discriminant_value();
+        if let field::Group(_) = field.which()? {
+            let nested_mod = ctx.get_qualified_module(field.get_type_id());
+            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+                return Ok(vec![]);
+            };
+            let count = count_newtype_leaves(ctx, nested_tmpl)?;
+            let (start, end) = (cursor, cursor + count);
+            inherent.push(Line(format!(
+                "pub fn init_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ let b = self.builder; b.set_data_field::<u16>(self.disc_offset as usize, {dvalue}); {nested_mod}::AnyBuilder::new(b, &self.offsets[{start}..{end}]) }}"
+            )));
+            assoc.push(Line(format!("type {variant} = {nested_mod}::AnyBuilder<'a>;")));
+            trait_methods.push(Line(format!(
+                "fn init_{name}(self) -> Self::{variant} {{ self.init_{name}() }}"
+            )));
+            cursor += count;
+        } else {
+            let off = format!("self.offsets[{cursor}] as usize");
+            let guard = unmapped_panic(cursor, &name);
+            for m in setter_methods_at(ctx, "self.disc_offset as usize", &name, &field, Some(&off))? {
+                let sig_inherent = m.signature(true);
+                let sig_trait = m.signature(false);
+                let call = format!("self.{}({})", m.name, m.delegate_args);
+                inherent.push(Line(format!("pub fn {sig_inherent} {{")));
+                inherent.push(indent(Branch(vec![Line(guard.clone()), m.body])));
+                inherent.push(line("}"));
+                trait_methods.push(Line(format!("fn {sig_trait} {{ {call} }}")));
+            }
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    inherent.push(Line(format!(
+                        "pub fn has_{name}(&self) -> bool {{ if self.builder.get_data_field::<u16>(self.disc_offset as usize) != {dvalue} {{ return false; }} !self.builder.is_pointer_field_null(self.offsets[{cursor}] as usize) }}"
+                    )));
+                    trait_methods.push(Line(format!(
+                        "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
+                    )));
+                }
+            }
+            cursor += 1;
+        }
+    }
+
+    let sb = fmt!(ctx, "{capnp}::private::layout::StructBuilder<'a>");
+    let mut trait_items = assoc;
+    trait_items.extend(trait_methods);
+    Ok(vec![
+        BlankLine,
+        Line(format!(
+            "pub struct AnyBuilder<'a> {{ builder: {sb}, disc_offset: u32, offsets: &'a [u32] }}"
+        )),
+        line("impl<'a> AnyBuilder<'a> {"),
+        indent(vec![
+            Line(format!(
+                "pub fn new(builder: {sb}, disc_offset: u32, offsets: &'a [u32]) -> Self {{ AnyBuilder {{ builder, disc_offset, offsets }} }}"
+            )),
+            Branch(inherent),
+        ]),
+        line("}"),
+        line("impl<'a> Builder<'a> for AnyBuilder<'a> {"),
+        indent(trait_items),
+        line("}"),
+    ])
+}
+
+// Emits `pub mod <name> { pub trait Reader<'a> {...} pub trait Builder<'a> {...} }` for a non-union
+// group newtype. Slot fields mirror the per-use-site accessors; a nested-newtype member (a group
+// field) is surfaced as an associated type bounded by that newtype's trait, plus a getter.
+fn generate_group_newtype_trait(
+    ctx: &GeneratorContext,
+    node_id: u64,
+    node_name: &str,
+) -> ::capnp::Result<FormattedText> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = group_newtype_template_id(ctx, node_id)? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+
+    let mut reader_items = Vec::new();
+    let mut builder_items = Vec::new();
+    for field in tmpl.get_fields()? {
+        if let field::Group(_) = field.which()? {
+            // Nested newtype member: an associated type bounded by the member's trait, plus a
+            // getter (and builder init) -- no whole-value setter, same as a struct field.
+            let name = camel_to_snake_case(field.get_name()?.to_str()?);
+            let assoc = capitalize_first_letter(field.get_name()?.to_str()?);
+            let nested = ctx.get_qualified_module(field.get_type_id());
+            reader_items.push(Line(format!("type {assoc}: {nested}::Reader<'a>;")));
+            reader_items.push(Line(format!("fn get_{name}(&self) -> Self::{assoc};")));
+            builder_items.push(Line(format!("type {assoc}: {nested}::Builder<'a>;")));
+            builder_items.push(Line(format!("fn get_{name}(self) -> Self::{assoc};")));
+            builder_items.push(Line(format!("fn init_{name}(self) -> Self::{assoc};")));
+        } else {
+            for m in newtype_trait_methods(ctx, &field, true, true)? {
+                reader_items.push(Line(format!("fn {};", m.signature)));
+            }
+            for m in newtype_trait_methods(ctx, &field, false, true)? {
+                builder_items.push(Line(format!("fn {};", m.signature)));
+            }
+        }
+    }
+
+    let mut module_items = vec![
+        line("pub trait Reader<'a> {"),
+        indent(reader_items),
+        line("}"),
+        line("pub trait Builder<'a> {"),
+        indent(builder_items),
+        line("}"),
+    ];
+    module_items.extend(any_reader_items(ctx, template_id)?);
+    module_items.extend(any_builder_items(ctx, template_id)?);
+
+    Ok(Branch(vec![
+        BlankLine,
+        Line(format!("pub mod {} {{", module_name(node_name))),
+        indent(module_items),
+        line("}"),
+    ]))
+}
+
+// Emits `impl<'a> <newtype>::Reader<'a> for <instance>::Reader<'a>` at a use site, giving the
+// stamped group's per-instance module the newtype's identity. Each method delegates to the
+// inherent accessor (inherent methods win over trait methods in method resolution, so this is
+// not recursive), which keeps offsets/defaults/pointer handling in one place.
+fn generate_newtype_impl(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+    instance_id: u64,
+) -> ::capnp::Result<FormattedText> {
+    Ok(Branch(vec![
+        generate_group_newtype_impl(ctx, alias_id, instance_id)?,
+        generate_union_newtype_impl(ctx, alias_id, instance_id)?,
+    ]))
+}
+
+fn generate_group_newtype_impl(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+    instance_id: u64,
+) -> ::capnp::Result<FormattedText> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = group_newtype_template_id(ctx, alias_id)? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+
+    // An incomplete `@[...]` mapping omits trailing fields from the instance; those have no
+    // inherent accessor to delegate to, so skip the trait for such a use site until the erased
+    // carrier (which reads defaults) lands. Index the instance's fields by name so nested members
+    // can find their per-instance group node.
+    let mut instance_fields = ::std::collections::HashMap::new();
+    for field in instance.get_fields()? {
+        instance_fields.insert(field.get_name()?.to_str()?.to_string(), field);
+    }
+
+    let mut trait_ok = true;
+    let mut reader_items = Vec::new();
+    let mut builder_items = Vec::new();
+    for field in tmpl.get_fields()? {
+        let raw_name = field.get_name()?.to_str()?;
+        let Some(inst_field) = instance_fields.get(raw_name) else {
+            // Unmapped leaf (incomplete `@[...]`): a scalar reads its default and its setter
+            // panics -- matching C++'s default read + "not mapped" assert. Anything else can't be
+            // synthesized in the concrete trait here, so skip just the trait for this use site --
+            // the erased `AnyReader` (via the offset table's sentinels) still reads it.
+            if is_scalar_data_field(&field)? {
+                let field::Slot(s) = field.which()? else {
+                    trait_ok = false;
+                    continue;
+                };
+                let dflt = prim_default_value(&s.get_default_value()?)?;
+                let not_mapped =
+                    format!("panic!(\"field '{raw_name}' is not mapped at this use site\")");
+                for m in newtype_trait_methods(ctx, &field, true, true)? {
+                    reader_items.push(Line(format!("fn {} {{ {dflt} }}", m.signature)));
+                }
+                for m in newtype_trait_methods(ctx, &field, false, true)? {
+                    let body = if m.call_name.starts_with("get_") {
+                        dflt.clone()
+                    } else if m.call_args.is_empty() {
+                        not_mapped.clone()
+                    } else if m.call_args.contains(',') {
+                        format!("let _ = ({}); {not_mapped}", m.call_args)
+                    } else {
+                        // Consume the arg so the panic-only body doesn't warn as unused.
+                        format!("let _ = {}; {not_mapped}", m.call_args)
+                    };
+                    builder_items.push(Line(format!("fn {} {{ {body} }}", m.signature)));
+                }
+            } else {
+                trait_ok = false;
+            }
+            continue;
+        };
+        // Delegate to the inherent accessor: inherent methods win over trait methods in method
+        // resolution, so this forwards rather than recurses, keeping offsets/defaults in one place.
+        if let field::Group(_) = field.which()? {
+            let field::Group(inst_group) = inst_field.which()? else {
+                return Ok(Branch(vec![]));
+            };
+            let name = camel_to_snake_case(raw_name);
+            let assoc = capitalize_first_letter(raw_name);
+            let inst_mod = ctx.get_qualified_module(inst_group.get_type_id());
+            reader_items.push(Line(format!("type {assoc} = {inst_mod}::Reader<'a>;")));
+            reader_items.push(Line(format!(
+                "fn get_{name}(&self) -> Self::{assoc} {{ (*self).get_{name}() }}"
+            )));
+            builder_items.push(Line(format!("type {assoc} = {inst_mod}::Builder<'a>;")));
+            builder_items.push(Line(format!(
+                "fn get_{name}(self) -> Self::{assoc} {{ self.get_{name}() }}"
+            )));
+            builder_items.push(Line(format!(
+                "fn init_{name}(self) -> Self::{assoc} {{ self.init_{name}() }}"
+            )));
+        } else {
+            for m in newtype_trait_methods(ctx, &field, true, true)? {
+                let recv = if m.deref_self { "(*self)" } else { "self" };
+                reader_items.push(Line(format!(
+                    "fn {} {{ {recv}.{}({}) }}",
+                    m.signature, m.call_name, m.call_args
+                )));
+            }
+            for m in newtype_trait_methods(ctx, &field, false, true)? {
+                let recv = if m.deref_self { "(*self)" } else { "self" };
+                builder_items.push(Line(format!(
+                    "fn {} {{ {recv}.{}({}) }}",
+                    m.signature, m.call_name, m.call_args
+                )));
+            }
+        }
+    }
+
+    let reader_methods = reader_items;
+    let builder_methods = builder_items;
+    let trait_path = ctx.get_qualified_module(alias_id);
+    let concrete = ctx.get_qualified_module(instance_id);
+
+    // Erased-carrier wiring: a per-use-site offset table (recursively over nested members) plus
+    // `as_any()` on the concrete reader -- through the public `IntoInternalStructReader`, since the
+    // inner field is private at this impl site.
+    let mut any_items = Vec::new();
+    {
+        let mut offsets = Vec::new();
+        collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
+        let n = offsets.len();
+        let table = format!(
+            "{}_OFFSETS",
+            camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
+        );
+        any_items.push(BlankLine);
+        any_items.push(Line(format!(
+            "static {table}: [u32; {n}] = [{}];",
+            offsets.join(", ")
+        )));
+        any_items.push(Line(format!("impl<'a> {concrete}::Reader<'a> {{")));
+        any_items.push(indent(Line(fmt!(ctx,
+            "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), &{table}) }}"
+        ))));
+        any_items.push(line("}"));
+        any_items.push(Line(format!("impl<'a> {concrete}::Builder<'a> {{")));
+        any_items.push(indent(Line(fmt!(ctx,
+            "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), &{table}) }}"
+        ))));
+        any_items.push(line("}"));
+    }
+
+    // The concrete trait impls require every leaf mappable (see `trait_ok`); the erased carrier
+    // (`any_items`) is always emitted -- it reads unmapped leaves as defaults via the offset table.
+    let mut out = Vec::new();
+    if trait_ok {
+        out.push(BlankLine);
+        out.push(Line(format!(
+            "impl<'a> {trait_path}::Reader<'a> for {concrete}::Reader<'a> {{"
+        )));
+        out.push(indent(reader_methods));
+        out.push(line("}"));
+        out.push(BlankLine);
+        out.push(Line(format!(
+            "impl<'a> {trait_path}::Builder<'a> for {concrete}::Builder<'a> {{"
+        )));
+        out.push(indent(builder_methods));
+        out.push(line("}"));
+    }
+    out.push(Branch(any_items));
+    Ok(Branch(out))
+}
+
+// The `Which` enum variants for a union newtype and whether any arm payload borrows (so the enum
+// needs a `<'a>`). Payload types come straight from the arm getter, so they match the per-instance
+// `Which` the impl maps from.
+// The `<...>` on a union newtype's `Which`: an optional `'a` (when a slot arm's payload borrows)
+// followed by one type parameter per group arm (`params`).
+fn union_which_generics(needs_lifetime: bool, params: &[String]) -> String {
+    let mut all = Vec::new();
+    if needs_lifetime {
+        all.push("'a".to_string());
+    }
+    all.extend(params.iter().cloned());
+    if all.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", all.join(", "))
+    }
+}
+
+// Emits `pub mod <name> { pub enum Which<...> {...} pub trait Reader<'a> {...} pub trait Builder }`
+// for a union newtype. A slot arm has a concrete `Which` payload; a group arm (a nested newtype) is
+// a `Which` type parameter backed by an associated type bounded by the arm's trait.
+fn generate_union_newtype_trait(
+    ctx: &GeneratorContext,
+    node_id: u64,
+    node_name: &str,
+) -> ::capnp::Result<FormattedText> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = union_newtype_template_id(ctx, node_id)? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+
+    let mut variants = Vec::new();
+    let mut group_params = Vec::new();
+    let mut reader_assoc = Vec::new();
+    let mut reader_methods = Vec::new();
+    let mut builder_assoc = Vec::new();
+    let mut builder_methods = Vec::new();
+    let mut needs_lifetime = false;
+    for field in tmpl.get_fields()? {
+        let variant = capitalize_first_letter(field.get_name()?.to_str()?);
+        let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        if let field::Group(_) = field.which()? {
+            let nested = ctx.get_qualified_module(field.get_type_id());
+            variants.push(Line(format!("{variant}({variant}),")));
+            group_params.push(variant.clone());
+            reader_assoc.push(Line(format!("type {variant}: {nested}::Reader<'a>;")));
+            builder_assoc.push(Line(format!("type {variant}: {nested}::Builder<'a>;")));
+            builder_methods.push(Line(format!("fn init_{name}(self) -> Self::{variant};")));
+        } else {
+            let (payload, _, _) = getter_text(ctx, &field, true, false)?;
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    needs_lifetime = true;
+                }
+            }
+            variants.push(Line(format!("{variant}({payload}),")));
+            for m in newtype_trait_methods(ctx, &field, true, false)? {
+                reader_methods.push(Line(format!("fn {};", m.signature)));
+            }
+            for m in newtype_trait_methods(ctx, &field, false, false)? {
+                builder_methods.push(Line(format!("fn {};", m.signature)));
+            }
+        }
+    }
+
+    let which_generics = union_which_generics(needs_lifetime, &group_params);
+    let self_params: Vec<String> = group_params.iter().map(|p| format!("Self::{p}")).collect();
+    let which_ret = union_which_generics(needs_lifetime, &self_params);
+
+    let mut reader_items = reader_assoc;
+    reader_items.push(Line(format!(
+        "fn which(&self) -> ::core::result::Result<Which{which_ret}, ::capnp::NotInSchema>;"
+    )));
+    reader_items.extend(reader_methods);
+    let mut builder_items = builder_assoc;
+    builder_items.extend(builder_methods);
+
+    let mut module_items = vec![
+        Branch(vec![
+            Line(format!("pub enum Which{which_generics} {{")),
+            indent(variants),
+            line("}"),
+        ]),
+        line("pub trait Reader<'a> {"),
+        indent(reader_items),
+        line("}"),
+        line("pub trait Builder<'a> {"),
+        indent(builder_items),
+        line("}"),
+    ];
+    module_items.extend(union_any_reader_items(ctx, template_id)?);
+    module_items.extend(union_any_builder_items(ctx, template_id)?);
+
+    Ok(Branch(vec![
+        BlankLine,
+        Line(format!("pub mod {} {{", module_name(node_name))),
+        indent(module_items),
+        line("}"),
+    ]))
+}
+
+// Impls the union newtype's Reader/Builder traits for a use site. `which()` maps the per-instance
+// `Which` variants to the shared enum; the arm accessors delegate to the inherent methods (which
+// carry the right discriminant offset).
+fn generate_union_newtype_impl(
+    ctx: &GeneratorContext,
+    alias_id: u64,
+    instance_id: u64,
+) -> ::capnp::Result<FormattedText> {
+    use capnp::schema_capnp::*;
+    let Some(template_id) = union_newtype_template_id(ctx, alias_id)? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+    let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
+        return Ok(Branch(vec![]));
+    };
+
+    let mut instance_fields = ::std::collections::HashMap::new();
+    for field in instance.get_fields()? {
+        instance_fields.insert(field.get_name()?.to_str()?.to_string(), field);
+    }
+
+    let trait_path = ctx.get_qualified_module(alias_id);
+    let concrete = ctx.get_qualified_module(instance_id);
+
+    let mut which_arms = Vec::new();
+    let mut group_params = Vec::new();
+    let mut reader_assoc = Vec::new();
+    let mut reader_methods = Vec::new();
+    let mut builder_assoc = Vec::new();
+    let mut builder_methods = Vec::new();
+    let mut needs_lifetime = false;
+    for field in tmpl.get_fields()? {
+        let raw_name = field.get_name()?.to_str()?;
+        let Some(inst_field) = instance_fields.get(raw_name) else {
+            return Ok(Branch(vec![]));
+        };
+        let variant = capitalize_first_letter(raw_name);
+        let name = camel_to_snake_case(raw_name);
+        which_arms.push(Line(format!(
+            "{concrete}::Which::{variant}(x) => {trait_path}::Which::{variant}(x),"
+        )));
+        if let field::Group(_) = field.which()? {
+            let field::Group(inst_group) = inst_field.which()? else {
+                return Ok(Branch(vec![]));
+            };
+            let inst_mod = ctx.get_qualified_module(inst_group.get_type_id());
+            group_params.push(variant.clone());
+            reader_assoc.push(Line(format!("type {variant} = {inst_mod}::Reader<'a>;")));
+            builder_assoc.push(Line(format!("type {variant} = {inst_mod}::Builder<'a>;")));
+            builder_methods.push(Line(format!(
+                "fn init_{name}(self) -> Self::{variant} {{ self.init_{name}() }}"
+            )));
+        } else {
+            if let field::Slot(s) = field.which()? {
+                if s.get_type()?.is_pointer()? {
+                    needs_lifetime = true;
+                }
+            }
+            for m in newtype_trait_methods(ctx, &field, true, false)? {
+                let recv = if m.deref_self { "(*self)" } else { "self" };
+                reader_methods.push(Line(format!(
+                    "fn {} {{ {recv}.{}({}) }}",
+                    m.signature, m.call_name, m.call_args
+                )));
+            }
+            for m in newtype_trait_methods(ctx, &field, false, false)? {
+                let recv = if m.deref_self { "(*self)" } else { "self" };
+                builder_methods.push(Line(format!(
+                    "fn {} {{ {recv}.{}({}) }}",
+                    m.signature, m.call_name, m.call_args
+                )));
+            }
+        }
+    }
+    let self_params: Vec<String> = group_params.iter().map(|p| format!("Self::{p}")).collect();
+    let which_ret = union_which_generics(needs_lifetime, &self_params);
+
+    let which_method = Branch(vec![
+        Line(format!(
+            "fn which(&self) -> ::core::result::Result<{trait_path}::Which{which_ret}, ::capnp::NotInSchema> {{"
+        )),
+        indent(vec![
+            line("::core::result::Result::Ok(match (*self).which()? {"),
+            indent(which_arms),
+            line("})"),
+        ]),
+        line("}"),
+    ]);
+
+    let mut reader_items = reader_assoc;
+    reader_items.push(which_method);
+    reader_items.extend(reader_methods);
+    let mut builder_items = builder_assoc;
+    builder_items.extend(builder_methods);
+
+    // Erased-carrier wiring: the offset table plus a runtime discriminant offset, then `as_any()`.
+    let mut offsets = Vec::new();
+    collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
+    let n = offsets.len();
+    let disc = instance.get_discriminant_offset();
+    let table = format!(
+        "{}_OFFSETS",
+        camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
+    );
+    let any_items = vec![
+        BlankLine,
+        Line(format!(
+            "static {table}: [u32; {n}] = [{}];",
+            offsets.join(", ")
+        )),
+        Line(format!("impl<'a> {concrete}::Reader<'a> {{")),
+        indent(Line(fmt!(ctx,
+            "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), {disc}, &{table}) }}"
+        ))),
+        line("}"),
+        Line(format!("impl<'a> {concrete}::Builder<'a> {{")),
+        indent(Line(fmt!(ctx,
+            "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), {disc}, &{table}) }}"
+        ))),
+        line("}"),
+    ];
+
+    Ok(Branch(vec![
+        BlankLine,
+        Line(format!(
+            "impl<'a> {trait_path}::Reader<'a> for {concrete}::Reader<'a> {{"
+        )),
+        indent(reader_items),
+        line("}"),
+        BlankLine,
+        Line(format!(
+            "impl<'a> {trait_path}::Builder<'a> for {concrete}::Builder<'a> {{"
+        )),
+        indent(builder_items),
+        line("}"),
+        Branch(any_items),
+    ]))
+}
+
+// Emits `pub mod <name> { pub type Reader ...; Builder; Owned }` for a scalar newtype (`type Uuid
+// = Data`, `type Age = UInt16`) so use sites can name the alias. A value newtype's aliases carry
+// no lifetime; a pointer newtype's Reader/Builder keep `<'a>`. Inline group/union newtypes (which
+// get a trait instead) and aliases of a pre-existing struct/interface are skipped here.
+fn generate_scalar_newtype_alias(
+    ctx: &GeneratorContext,
+    node_id: u64,
+    node_name: &str,
+    t: schema_capnp::type_::Reader,
+) -> ::capnp::Result<FormattedText> {
+    use capnp::schema_capnp::*;
+    if newtype_template_id(ctx, node_id)?.is_some() {
+        return Ok(Branch(vec![]));
+    }
+    if matches!(t.which()?, type_::Struct(_) | type_::Interface(_)) {
+        return Ok(Branch(vec![]));
+    }
+    let module = module_name(node_name);
+    let items = if t.is_pointer()? {
+        vec![
+            Line(format!(
+                "pub type Reader<'a> = {};",
+                t.type_string(ctx, Leaf::Reader("'a"))?
+            )),
+            Line(format!(
+                "pub type Builder<'a> = {};",
+                t.type_string(ctx, Leaf::Builder("'a"))?
+            )),
+            Line(format!(
+                "pub type Owned = {};",
+                t.type_string(ctx, Leaf::Owned)?
+            )),
+        ]
+    } else {
+        let v = t.type_string(ctx, Leaf::Reader(""))?;
+        vec![
+            Line(format!("pub type Reader = {v};")),
+            Line(format!("pub type Builder = {v};")),
+            Line(format!("pub type Owned = {v};")),
+        ]
+    };
+    Ok(Branch(vec![
+        BlankLine,
+        Line(format!("pub mod {module} {{")),
+        indent(items),
+        line("}"),
+    ]))
+}
+
 fn generate_node(
     ctx: &GeneratorContext,
     node_id: u64,
@@ -1999,7 +3334,10 @@ fn generate_node(
     }
 
     match node_reader.which()? {
-        node::Type(Ok(_t)) => {}
+        node::Type(Ok(t)) => {
+            output.push(generate_newtype_trait(ctx, node_id, node_name)?);
+            output.push(generate_scalar_newtype_alias(ctx, node_id, node_name, t)?);
+        }
         node::Type(Err(e)) => {
             return Err(Error::failed(format!("error reading node type: {e}")));
         }
@@ -2136,6 +3474,13 @@ fn generate_node(
                     let id = group.get_type_id();
                     let text = generate_node(ctx, id, ctx.get_last_name(id)?)?;
                     nested_output.push(text);
+
+                    // If this group is a stamped inline newtype, give its per-instance module the
+                    // newtype's semantic trait.
+                    let alias_id = field.get_type_id();
+                    if alias_id != 0 {
+                        nested_output.push(generate_newtype_impl(ctx, alias_id, id)?);
+                    }
                 }
             }
 
@@ -2347,6 +3692,15 @@ fn generate_node(
                         Line(fmt!(ctx,"fn from(builder: {capnp}::private::layout::StructBuilder<'a>) -> Self {{")),
                         indent(Line(format!("Self {{ builder, {} }}", params.phantom_data_value))),
                         line("}")
+                ]),
+                line("}"),
+                BlankLine,
+                Line(fmt!(ctx,"impl <'a,{0}> {capnp}::traits::IntoInternalStructBuilder<'a> for Builder<'a,{0}> {1} {{",
+                            params.params, params.where_clause)),
+                indent(vec![
+                    Line(fmt!(ctx,"fn into_internal_struct_builder(self) -> {capnp}::private::layout::StructBuilder<'a> {{")),
+                    indent(line("self.builder")),
+                    line("}")
                 ]),
                 line("}"),
                 BlankLine,
