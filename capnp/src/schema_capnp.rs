@@ -232,6 +232,12 @@ pub mod node {
         }
     }
 
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
+        }
+    }
+
     impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
@@ -1057,6 +1063,12 @@ pub mod node {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -1361,6 +1373,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -1718,6 +1736,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -2174,6 +2198,12 @@ pub mod node {
                 }
             }
 
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
+                }
+            }
+
             impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
                 fn from(builder: Builder<'a>) -> Self {
                     Self::Struct(crate::dynamic_struct::Builder::new(
@@ -2515,6 +2545,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -2993,6 +3029,12 @@ pub mod node {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -3325,6 +3367,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -3711,6 +3759,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -4117,6 +4171,12 @@ pub mod node {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -4776,6 +4836,12 @@ pub mod field {
         }
     }
 
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
+        }
+    }
+
     impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
@@ -5304,6 +5370,12 @@ pub mod field {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -5708,6 +5780,12 @@ pub mod field {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -5990,6 +6068,12 @@ pub mod field {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -6330,6 +6414,12 @@ pub mod enumerant {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -6711,6 +6801,12 @@ pub mod superclass {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -7106,6 +7202,12 @@ pub mod method {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -7705,6 +7807,12 @@ pub mod type_ {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -8418,6 +8526,12 @@ pub mod type_ {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -8732,6 +8846,12 @@ pub mod type_ {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -9070,6 +9190,12 @@ pub mod type_ {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -9412,6 +9538,12 @@ pub mod type_ {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -9744,6 +9876,12 @@ pub mod type_ {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -10091,6 +10229,12 @@ pub mod type_ {
             impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
                 fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                     Self { builder }
+                }
+            }
+
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
                 }
             }
 
@@ -10463,6 +10607,12 @@ pub mod type_ {
                 }
             }
 
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
+                }
+            }
+
             impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
                 fn from(builder: Builder<'a>) -> Self {
                     Self::Struct(crate::dynamic_struct::Builder::new(
@@ -10777,6 +10927,12 @@ pub mod type_ {
                 }
             }
 
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
+                }
+            }
+
             impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
                 fn from(builder: Builder<'a>) -> Self {
                     Self::Struct(crate::dynamic_struct::Builder::new(
@@ -11074,6 +11230,12 @@ pub mod brand {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -11405,6 +11567,12 @@ pub mod brand {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -11801,6 +11969,12 @@ pub mod brand {
         impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
             fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                 Self { builder }
+            }
+        }
+
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
             }
         }
 
@@ -12217,6 +12391,12 @@ pub mod value {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -13029,6 +13209,12 @@ pub mod annotation {
         }
     }
 
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
+        }
+    }
+
     impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
@@ -13540,6 +13726,12 @@ pub mod capnp_version {
         }
     }
 
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
+        }
+    }
+
     impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
@@ -13918,6 +14110,12 @@ pub mod code_generator_request {
     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
             Self { builder }
+        }
+    }
+
+    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+        fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+            self.builder
         }
     }
 
@@ -14437,6 +14635,12 @@ pub mod code_generator_request {
             }
         }
 
+        impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+            fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                self.builder
+            }
+        }
+
         impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
@@ -14604,7 +14808,7 @@ pub mod code_generator_request {
                 )
             }
             #[inline]
-            pub fn init_file_source_info(self, ) -> crate::schema_capnp::code_generator_request::requested_file::file_source_info::Builder<'a>{
+            pub fn init_file_source_info(self) -> crate::schema_capnp::code_generator_request::requested_file::file_source_info::Builder<'a>{
                 crate::traits::FromPointerBuilder::init_pointer(
                     self.builder.get_pointer_field(2),
                     0,
@@ -14896,6 +15100,12 @@ pub mod code_generator_request {
             impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
                 fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                     Self { builder }
+                }
+            }
+
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
                 }
             }
 
@@ -15238,6 +15448,12 @@ pub mod code_generator_request {
             impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
                 fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                     Self { builder }
+                }
+            }
+
+            impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                fn into_internal_struct_builder(self) -> crate::private::layout::StructBuilder<'a> {
+                    self.builder
                 }
             }
 
@@ -15584,6 +15800,14 @@ pub mod code_generator_request {
                     }
                 }
 
+                impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                    fn into_internal_struct_builder(
+                        self,
+                    ) -> crate::private::layout::StructBuilder<'a> {
+                        self.builder
+                    }
+                }
+
                 impl<'a> ::core::convert::From<Builder<'a>> for crate::dynamic_value::Builder<'a> {
                     fn from(builder: Builder<'a>) -> Self {
                         Self::Struct(crate::dynamic_struct::Builder::new(
@@ -15679,7 +15903,7 @@ pub mod code_generator_request {
                         self.builder.set_data_field::<u64>(1, value);
                     }
                     #[inline]
-                    pub fn init_member(self, ) -> crate::schema_capnp::code_generator_request::requested_file::file_source_info::identifier::member::Builder<'a>{
+                    pub fn init_member(self) -> crate::schema_capnp::code_generator_request::requested_file::file_source_info::identifier::member::Builder<'a>{
                         self.builder.set_data_field::<u16>(8, 1);
                         self.builder.set_data_field::<u64>(1, 0u64);
                         self.builder.set_data_field::<u16>(9, 0u16);
@@ -15965,6 +16189,14 @@ pub mod code_generator_request {
                     impl<'a> ::core::convert::From<crate::private::layout::StructBuilder<'a>> for Builder<'a> {
                         fn from(builder: crate::private::layout::StructBuilder<'a>) -> Self {
                             Self { builder }
+                        }
+                    }
+
+                    impl<'a> crate::traits::IntoInternalStructBuilder<'a> for Builder<'a> {
+                        fn into_internal_struct_builder(
+                            self,
+                        ) -> crate::private::layout::StructBuilder<'a> {
+                            self.builder
                         }
                     }
 
