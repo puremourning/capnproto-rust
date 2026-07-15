@@ -152,6 +152,20 @@ impl RustNodeInfo for node::Reader<'_> {
 
 impl RustTypeInfo for type_::Reader<'_> {
     fn type_string(&self, ctx: &GeneratorContext, module: Leaf) -> Result<String, Error> {
+        // A scalar `type` newtype: render the alias's name in place of the underlying type. The
+        // alias module (emitted at the type node) provides Reader/Builder/Owned; a value newtype
+        // has no lifetime, so only its pointer counterpart keeps `<'a>`.
+        if self.get_type_id() != 0 {
+            let m = ctx.get_qualified_module(self.get_type_id());
+            let bare = module.bare_name();
+            return Ok(match module {
+                Leaf::Reader(lt) | Leaf::Builder(lt) if self.is_pointer()? => {
+                    format!("{m}::{bare}<{lt}>")
+                }
+                _ => format!("{m}::{bare}"),
+            });
+        }
+
         let local_lifetime = match module {
             Leaf::Reader(lt) => lt,
             Leaf::Builder(lt) => lt,

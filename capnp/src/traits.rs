@@ -36,6 +36,11 @@ pub trait IntoInternalStructReader<'a> {
     fn into_internal_struct_reader(self) -> StructReader<'a>;
 }
 
+/// Trait for all types that can be converted to a low-level `StructBuilder`.
+pub trait IntoInternalStructBuilder<'a> {
+    fn into_internal_struct_builder(self) -> StructBuilder<'a>;
+}
+
 /// Trait for all types that can be converted to a low-level `ListReader`.
 pub trait IntoInternalListReader<'a> {
     fn into_internal_list_reader(self) -> ListReader<'a>;

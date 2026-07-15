@@ -46,6 +46,8 @@ pub mod test_default_parent_module {
     capnp::generated_code!(pub mod test_default_parent_module_override_capnp);
 }
 
+capnp::generated_code!(pub mod test_newtype_capnp);
+
 capnp::generated_code!(pub mod test_in_dir_capnp, "schema/test_in_dir_capnp.rs");
 
 // The src_prefix gets stripped away, so the generated code ends up directly in OUT_DIR.
@@ -2429,5 +2431,422 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn newtype_group_traits_round_trip() {
+        use crate::test_newtype_capnp::{shapes, vec3};
+
+        // Generic over any Vec3 use site through the newtype's traits -- the point of the feature.
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+        fn sum<'a>(v: &impl vec3::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        fill(&mut root.reborrow().get_top_left(), 1.0, 2.0, 3.0);
+        fill(&mut root.reborrow().get_bottom_right(), 10.0, 20.0, 30.0);
+
+        let reader = root.into_reader();
+        assert_eq!(sum(&reader.reborrow().get_top_left()), 6.0);
+        assert_eq!(sum(&reader.reborrow().get_bottom_right()), 60.0);
+        // The two use sites occupy distinct offsets -- no aliasing.
+        assert_eq!(reader.reborrow().get_top_left().get_z(), 3.0);
+        assert_eq!(reader.reborrow().get_bottom_right().get_z(), 30.0);
+    }
+
+    #[test]
+    fn newtype_dyn_erasure() {
+        use crate::test_newtype_capnp::{shapes, vec3};
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        root.reborrow().get_top_left().set_z(3.0);
+        root.reborrow().get_bottom_right().set_z(9.0);
+
+        let reader = root.into_reader();
+        let tl = reader.reborrow().get_top_left();
+        let br = reader.reborrow().get_bottom_right();
+        // One erased type unifies both use sites.
+        let anys: [&dyn vec3::Reader<'_>; 2] = [&tl, &br];
+        assert_eq!(anys[0].get_z(), 3.0);
+        assert_eq!(anys[1].get_z(), 9.0);
+    }
+
+    #[test]
+    fn newtype_pointer_fields() {
+        use crate::test_newtype_capnp::{named, shapes};
+
+        // Access is through the traits (generic over the use site), not the concrete accessors.
+        fn fill<'a>(n: &mut impl named::Builder<'a>) {
+            n.set_label("widget");
+            n.set_count(5);
+        }
+        fn check<'a>(n: &impl named::Reader<'a>) {
+            assert_eq!(n.get_label().unwrap(), "widget");
+            assert_eq!(n.get_count(), 5);
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        fill(&mut root.reborrow().get_named());
+        let reader = root.into_reader();
+        check(&reader.get_named());
+    }
+
+    #[test]
+    fn newtype_struct_and_list_fields() {
+        // Struct + list + text members in the traits. Building uses the concrete builder (init and
+        // reborrow aren't expressible through a generic bound); reading goes through the trait.
+        use crate::test_newtype_capnp::{boxed, shapes};
+
+        fn check<'a>(b: &impl boxed::Reader<'a>) {
+            assert_eq!(b.get_at().unwrap().get_lat(), 51.5);
+            assert_eq!(b.get_tags().unwrap().get(1), 20);
+            assert_eq!(b.get_note().unwrap(), "hi");
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        {
+            let mut b = root.reborrow().get_boxed();
+            {
+                let mut at = b.reborrow().init_at();
+                at.set_lat(51.5);
+                at.set_lng(-0.1);
+            }
+            {
+                let mut tags = b.reborrow().init_tags(2);
+                tags.set(0, 10);
+                tags.set(1, 20);
+            }
+            b.set_note("hi");
+        }
+        let reader = root.into_reader();
+        check(&reader.get_boxed());
+    }
+
+    #[test]
+    fn newtype_union_which() {
+        // A union newtype exposes a shared `Which` and `which()`, over void / data / pointer arms.
+        // Set and read go through the traits, generically.
+        use crate::test_newtype_capnp::{shapes, status};
+
+        fn set_code<'a>(s: &mut impl status::Builder<'a>, v: i32) {
+            s.set_code(v);
+        }
+        fn set_label<'a>(s: &mut impl status::Builder<'a>, v: &str) {
+            s.set_label(v);
+        }
+        fn set_pending<'a>(s: &mut impl status::Builder<'a>) {
+            s.set_pending(());
+        }
+        fn which_of<'a>(s: &impl status::Reader<'a>) -> status::Which<'a> {
+            s.which().unwrap()
+        }
+
+        // data arm
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut root = message.init_root::<shapes::Builder<'_>>();
+            set_code(&mut root.reborrow().get_status(), 42);
+            let reader = root.into_reader();
+            let s = reader.get_status();
+            match which_of(&s) {
+                status::Which::Code(n) => assert_eq!(n, 42),
+                _ => panic!("expected Code"),
+            }
+        }
+        // pointer arm
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut root = message.init_root::<shapes::Builder<'_>>();
+            set_label(&mut root.reborrow().get_status(), "hi");
+            let reader = root.into_reader();
+            let s = reader.get_status();
+            match which_of(&s) {
+                status::Which::Label(t) => assert_eq!(t.unwrap(), "hi"),
+                _ => panic!("expected Label"),
+            }
+        }
+        // void arm
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut root = message.init_root::<shapes::Builder<'_>>();
+            set_pending(&mut root.reborrow().get_status());
+            let reader = root.into_reader();
+            let s = reader.get_status();
+            match which_of(&s) {
+                status::Which::Pending(()) => {}
+                _ => panic!("expected Pending"),
+            }
+        }
+    }
+
+    #[test]
+    fn newtype_scalar_aliases() {
+        // A scalar newtype becomes an alias module usable as a real type at every position: a value
+        // newtype (`Age = u16`) and a pointer newtype (`Uuid = Data`).
+        use crate::test_newtype_capnp::{age, ids, shapes, uuid};
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        root.set_age(42);
+        root.set_id(&[1u8, 2, 3]);
+        {
+            let mut list = root.reborrow().init_ids(2);
+            list.set(0, 10);
+            list.set(1, 20);
+        }
+
+        let reader = root.into_reader();
+        let a: age::Reader = reader.get_age(); // value alias -> u16
+        assert_eq!(a, 42u16);
+        let id: uuid::Reader<'_> = reader.get_id().unwrap(); // pointer alias -> data::Reader
+        assert_eq!(id, &[1u8, 2, 3][..]);
+        let list: ids::Reader<'_> = reader.get_ids().unwrap(); // List alias
+        assert_eq!(list.get(1), 20);
+    }
+
+    #[test]
+    fn newtype_nested_members() {
+        // A newtype whose members are themselves newtypes: `get_limit()`/`get_stop()` return the
+        // nested `Price` trait (via associated types), so the whole thing composes generically.
+        use crate::test_newtype_capnp::{order_prices, price, shapes};
+
+        // Reads compose the two traits: the outer getter returns `Self::Limit: price::Reader`, on
+        // which `get_value`/`get_scale` are the nested trait's methods (so `price::Reader` must be
+        // in scope to call them).
+        fn limit_value<'a>(op: &impl order_prices::Reader<'a>) -> i64 {
+            use price::Reader as _;
+            op.get_limit().get_value()
+        }
+        fn limit_scale<'a>(op: &impl order_prices::Reader<'a>) -> u16 {
+            use price::Reader as _;
+            op.get_limit().get_scale()
+        }
+        fn stop_value<'a>(op: &impl order_prices::Reader<'a>) -> i64 {
+            use price::Reader as _;
+            op.get_stop().get_value()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        {
+            // Building an inline group needs the concrete builder (reborrow).
+            let mut p = root.reborrow().get_prices();
+            {
+                let mut limit = p.reborrow().get_limit();
+                limit.set_value(100);
+                limit.set_scale(2);
+            }
+            p.get_stop().set_value(500);
+        }
+
+        let reader = root.into_reader();
+        let p = reader.get_prices();
+        assert_eq!(limit_value(&p), 100);
+        assert_eq!(limit_scale(&p), 2);
+        assert_eq!(stop_value(&p), 500); // no aliasing between the two Price members
+    }
+
+    #[test]
+    fn newtype_union_with_group_arm() {
+        // A union newtype whose `limit` arm is itself a newtype (Price): `which()` yields a
+        // `price::Reader` in that arm, all via associated types + generics.
+        use crate::test_newtype_capnp::{order_type, price, shapes};
+
+        fn describe<'a>(ot: &impl order_type::Reader<'a>) -> i64 {
+            use price::Reader as _;
+            match ot.which().unwrap() {
+                order_type::Which::Limit(p) => p.get_value(),
+                order_type::Which::Cancel(n) => n as i64,
+                order_type::Which::Market(()) => -1,
+            }
+        }
+        fn set_limit<'a>(ot: impl order_type::Builder<'a>, v: i64) {
+            use price::Builder as _;
+            let mut limit = ot.init_limit();
+            limit.set_value(v);
+        }
+        fn set_cancel<'a>(ot: &mut impl order_type::Builder<'a>, n: i32) {
+            ot.set_cancel(n);
+        }
+        fn set_market<'a>(ot: &mut impl order_type::Builder<'a>) {
+            ot.set_market(());
+        }
+
+        let built = |sel: &dyn Fn(shapes::Builder<'_>)| -> i64 {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut root = message.init_root::<shapes::Builder<'_>>();
+            sel(root.reborrow());
+            describe(&root.into_reader().get_order())
+        };
+        assert_eq!(built(&|r| set_limit(r.get_order(), 100)), 100); // group arm -> Price
+        assert_eq!(built(&|r| set_cancel(&mut r.get_order(), 7)), 7); // data arm
+        assert_eq!(built(&|r| set_market(&mut r.get_order())), -1); // void arm
+    }
+
+    #[test]
+    fn newtype_any_reader_erasure() {
+        // The erased carrier: `as_any()` collapses distinct use sites (distinct offset tables) to
+        // one concrete `AnyReader` that reads offsets at runtime and still impls the trait.
+        use crate::test_newtype_capnp::{shapes, vec3};
+
+        fn sum<'a>(v: &impl vec3::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        fill(&mut root.reborrow().get_top_left(), 1.0, 2.0, 3.0);
+        fill(&mut root.reborrow().get_bottom_right(), 10.0, 20.0, 30.0);
+        {
+            let mut b = root.reborrow().get_boxed();
+            b.set_note("hi");
+            b.reborrow().init_at().set_lat(51.5);
+        }
+        let reader = root.into_reader();
+
+        // Two Vec3 use sites erased into one Vec of a single type.
+        let anys: Vec<vec3::AnyReader<'_>> = vec![
+            reader.reborrow().get_top_left().as_any(),
+            reader.reborrow().get_bottom_right().as_any(),
+        ];
+        assert_eq!(anys[0].get_z(), 3.0); // distinct offsets, no aliasing
+        assert_eq!(anys[1].get_z(), 30.0);
+        assert_eq!(sum(&anys[0]), 6.0); // AnyReader impls the trait
+        assert_eq!(sum(&anys[1]), 60.0);
+
+        // Pointer fields work through the erased carrier too.
+        let any = reader.get_boxed().as_any();
+        assert_eq!(any.get_note().unwrap(), "hi");
+        assert_eq!(any.get_at().unwrap().get_lat(), 51.5);
+        assert!(any.has_note());
+    }
+
+    #[test]
+    fn newtype_any_builder() {
+        // The erased mutable carrier: `as_any()` on a builder yields an `AnyBuilder` that writes at
+        // runtime offsets and impls the Builder trait; nested members yield a nested `AnyBuilder`.
+        use crate::test_newtype_capnp::{shapes, vec3};
+
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        // Two distinct use sites, mutated through one erased builder type.
+        fill(&mut root.reborrow().get_top_left().as_any(), 1.0, 2.0, 3.0);
+        fill(
+            &mut root.reborrow().get_bottom_right().as_any(),
+            10.0,
+            20.0,
+            30.0,
+        );
+        // Nested AnyBuilder: init_limit() returns a price::AnyBuilder over a sub-slice.
+        {
+            let mut limit = root.reborrow().get_prices().as_any().init_limit();
+            limit.set_value(100);
+        }
+
+        let reader = root.into_reader();
+        assert_eq!(reader.reborrow().get_top_left().as_any().get_z(), 3.0);
+        assert_eq!(reader.reborrow().get_bottom_right().as_any().get_z(), 30.0);
+        assert_eq!(reader.get_prices().as_any().get_limit().get_value(), 100);
+    }
+
+    #[test]
+    fn newtype_union_any_builder() {
+        // The erased mutable union carrier: set arms (writing the discriminant at a runtime offset)
+        // through `AnyBuilder`, read back through `AnyReader`.
+        use crate::test_newtype_capnp::{order_type, shapes};
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        {
+            let mut limit = root.reborrow().get_order().as_any().init_limit(); // group arm
+            limit.set_value(100);
+        }
+        match root
+            .reborrow()
+            .into_reader()
+            .get_order()
+            .as_any()
+            .which()
+            .unwrap()
+        {
+            order_type::Which::Limit(p) => assert_eq!(p.get_value(), 100),
+            _ => panic!("expected Limit"),
+        }
+        root.reborrow().get_order().as_any().set_cancel(7); // data arm
+        match root.into_reader().get_order().as_any().which().unwrap() {
+            order_type::Which::Cancel(n) => assert_eq!(n, 7),
+            _ => panic!("expected Cancel"),
+        }
+    }
+
+    #[test]
+    fn newtype_explicit_defaults() {
+        // A newtype field with an explicit default (`scale = 100`) reads it when unset -- via the
+        // concrete reader, the trait, and the erased `AnyReader`.
+        use crate::test_newtype_capnp::{priced, shapes};
+
+        fn scale_of<'a>(p: &impl priced::Reader<'a>) -> u16 {
+            p.get_scale()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        root.reborrow().get_priced().set_amount(7); // scale left unset
+
+        let reader = root.into_reader();
+        let p = reader.reborrow().get_priced();
+        assert_eq!(p.get_amount(), 7);
+        assert_eq!(p.get_scale(), 100); // concrete
+        assert_eq!(scale_of(&p), 100); // trait
+        assert_eq!(reader.get_priced().as_any().get_scale(), 100); // erased carrier
+    }
+
+    #[test]
+    fn newtype_incomplete_mapping() {
+        // An incomplete `@[...]` leaves `scale` unmapped; it reads its default (100) through the
+        // trait and `AnyReader`, and `set_scale` on the erased builder panics ("not mapped").
+        use crate::test_newtype_capnp::{priced, shapes};
+
+        fn scale_of<'a>(p: &impl priced::Reader<'a>) -> u16 {
+            p.get_scale()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<shapes::Builder<'_>>();
+        root.reborrow().get_priced_partial().set_amount(5); // amount mapped; scale unmapped
+
+        let reader = root.into_reader();
+        let pp = reader.reborrow().get_priced_partial();
+        assert_eq!(pp.get_amount(), 5);
+        assert_eq!(scale_of(&pp), 100); // unmapped -> default, via the trait
+        assert_eq!(reader.get_priced_partial().as_any().get_scale(), 100); // and via AnyReader
+    }
+
+    #[test]
+    #[should_panic(expected = "not mapped")]
+    fn newtype_incomplete_mapping_set_panics() {
+        use crate::test_newtype_capnp::{priced, shapes};
+        let mut message = ::capnp::message::Builder::new_default();
+        let root = message.init_root::<shapes::Builder<'_>>();
+        // Setting an unmapped leaf through the erased builder panics (mirrors the C++ assert).
+        priced::Builder::set_scale(&mut root.get_priced_partial().as_any(), 5);
     }
 }
