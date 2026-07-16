@@ -47,6 +47,7 @@ pub mod test_default_parent_module {
 }
 
 capnp::generated_code!(pub mod test_newtype_capnp);
+capnp::generated_code!(pub mod test_newtype_import_capnp);
 
 capnp::generated_code!(pub mod test_in_dir_capnp, "schema/test_in_dir_capnp.rs");
 
@@ -2848,5 +2849,41 @@ mod tests {
         let root = message.init_root::<shapes::Builder<'_>>();
         // Setting an unmapped leaf through the erased builder panics (mirrors the C++ assert).
         priced::Builder::set_scale(&mut root.get_priced_partial().as_any(), 5);
+    }
+
+    #[test]
+    fn newtype_cross_file() {
+        // The newtypes used by `CrossFile` are defined in test-newtype-import.capnp. This only
+        // compiles if the compiler pulled their `type` nodes (and the group's template) into this
+        // file's request, and if codegen resolved the imported alias modules / wrapper traits.
+        use crate::test_newtype_capnp::cross_file;
+        use crate::test_newtype_import_capnp::{imported_age, imported_id, imported_vec};
+
+        // Group newtype accessed generically through its imported traits.
+        fn fill<'a>(v: &mut impl imported_vec::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+        fn sum<'a>(v: &impl imported_vec::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<cross_file::Builder<'_>>();
+        root.set_age(77);
+        root.set_id(&[9u8, 8, 7]);
+        fill(&mut root.reborrow().get_corner(), 1.25, 2.5, 3.75);
+
+        let reader = root.into_reader();
+        let age: imported_age::Reader = reader.get_age(); // imported value alias -> u16
+        assert_eq!(age, 77u16);
+        let id: imported_id::Reader<'_> = reader.get_id().unwrap(); // imported pointer alias
+        assert_eq!(id, &[9u8, 8, 7][..]);
+        assert_eq!(sum(&reader.reborrow().get_corner()), 7.5);
+
+        // Erasure to the imported AnyReader also works cross-file.
+        let any = reader.get_corner().as_any();
+        assert_eq!(any.get_z(), 3.75);
     }
 }
