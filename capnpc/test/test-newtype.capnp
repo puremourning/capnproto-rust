@@ -24,6 +24,8 @@
 
 @0xf9d8e7c6b5a49382;
 
+using Import = import "test-newtype-import.capnp";
+
 type Vec3 = group {                  # flat group newtype over primitives
   x @0 :Float32;
   y @1 :Float32;
@@ -87,4 +89,12 @@ struct Shapes {
   priced @[24, 25] :Priced;               # explicit-default field, complete mapping
   pricedPartial @[26] :Priced;            # incomplete: scale unmapped -> reads its default (100)
   ids @27 :Ids;                           # scalar List newtype used as an ordinary field
+}
+
+struct CrossFile {
+  # Newtypes imported from test-newtype-import.capnp: their `type` node and template live in the
+  # other file, so this exercises the compiler pulling cross-file newtype nodes into the request.
+  id @0 :Import.ImportedId;             # scalar pointer newtype -> imported alias module
+  age @1 :Import.ImportedAge;           # scalar value newtype -> imported alias module
+  corner @[2, 3, 4] :Import.ImportedVec;   # group newtype -> imported wrapper module
 }
