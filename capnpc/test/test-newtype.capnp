@@ -98,3 +98,23 @@ struct CrossFile {
   age @1 :Import.ImportedAge;           # scalar value newtype -> imported alias module
   corner @[2, 3, 4] :Import.ImportedVec;   # group newtype -> imported wrapper module
 }
+
+struct PlaceParams {
+  # A method's parameters are an ordinary struct, so group/union newtypes reach a method through a
+  # named parameter struct like this one. (The `@[...]` ordinal-mapping syntax is only valid on
+  # struct fields, not inside an inline `(...)` parameter list.)
+  spot @[0-2] :Vec3;                    # group newtype in a request slot
+  tag @3 :Uuid;                         # scalar pointer newtype in a request slot
+}
+
+struct PlaceResults {
+  echo @[0-2] :Vec3;                    # group newtype in a response slot
+  kind @[3, 4, 5, 6] :OrderType;        # union newtype in a response slot
+}
+
+interface Registry {
+  # Newtypes in interface method parameter/result slots. Scalar newtypes may appear directly in an
+  # inline parameter list; group/union newtypes come in via the named structs above.
+  lookup @0 (id :Uuid, age :Age) -> (foundId :Uuid, foundAge :Age);
+  place @1 PlaceParams -> PlaceResults;
+}

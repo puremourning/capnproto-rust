@@ -2886,4 +2886,81 @@ mod tests {
         let any = reader.get_corner().as_any();
         assert_eq!(any.get_z(), 3.75);
     }
+
+    #[test]
+    fn newtype_in_method_params_and_results() {
+        // An interface method's parameters and results are ordinary structs, so a newtype used in a
+        // method slot gets the same generated API as one used in a plain struct field. The test
+        // crate has no RPC runtime, so this drives the generated parameter/result structs directly
+        // -- enough to prove the newtype codegen reaches a method's parameter/result slots.
+        use crate::test_newtype_capnp::{
+            age, order_type, place_params, place_results, registry, uuid, vec3,
+        };
+
+        // Group/union newtypes are accessed generically through their traits, as at any use site.
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+        fn sum<'a>(v: &impl vec3::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+        fn set_cancel<'a>(ot: &mut impl order_type::Builder<'a>, n: i32) {
+            ot.set_cancel(n);
+        }
+        fn cancel_of<'a>(ot: &impl order_type::Reader<'a>) -> i32 {
+            match ot.which().unwrap() {
+                order_type::Which::Cancel(n) => n,
+                _ => panic!("expected Cancel"),
+            }
+        }
+
+        // Scalar newtypes (Uuid = Data, Age = UInt16) in an inline parameter list...
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut params = message.init_root::<registry::lookup_params::Builder<'_>>();
+            params.set_id(&[1u8, 2, 3, 4]);
+            params.set_age(41);
+            let reader = params.into_reader();
+            let id: uuid::Reader<'_> = reader.reborrow().get_id().unwrap();
+            assert_eq!(id, &[1u8, 2, 3, 4][..]);
+            let a: age::Reader = reader.get_age();
+            assert_eq!(a, 41u16);
+        }
+        // ...and in an inline result list.
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut results = message.init_root::<registry::lookup_results::Builder<'_>>();
+            results.set_found_id(&[9u8, 8, 7]);
+            results.set_found_age(42);
+            let reader = results.into_reader();
+            assert_eq!(reader.reborrow().get_found_id().unwrap(), &[9u8, 8, 7][..]);
+            let a: age::Reader = reader.get_found_age();
+            assert_eq!(a, 42u16);
+        }
+
+        // Group newtype (Vec3) + scalar newtype (Uuid) via a named parameter struct.
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut params = message.init_root::<place_params::Builder<'_>>();
+            params.set_tag(&[0xab_u8]);
+            fill(&mut params.reborrow().get_spot(), 1.0, 2.0, 3.0);
+            let reader = params.into_reader();
+            assert_eq!(sum(&reader.reborrow().get_spot()), 6.0);
+            assert_eq!(reader.get_tag().unwrap(), &[0xab_u8][..]);
+        }
+
+        // Group newtype (Vec3) + union newtype (OrderType) via a named result struct.
+        {
+            let mut message = ::capnp::message::Builder::new_default();
+            let mut results = message.init_root::<place_results::Builder<'_>>();
+            fill(&mut results.reborrow().get_echo(), 2.0, 4.0, 6.0);
+            set_cancel(&mut results.reborrow().get_kind(), 99);
+
+            let reader = results.into_reader();
+            assert_eq!(sum(&reader.reborrow().get_echo()), 12.0);
+            assert_eq!(cancel_of(&reader.get_kind()), 99);
+        }
+    }
 }

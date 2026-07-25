@@ -30,9 +30,11 @@ use futures::channel::oneshot;
 use futures::{Future, FutureExt, TryFutureExt};
 
 capnp::generated_code!(pub mod test_capnp);
+capnp::generated_code!(pub mod test_newtype_capnp);
 
 pub mod disconnector_test;
 pub mod impls;
+pub mod newtype_test;
 pub mod reconnect_test;
 pub mod test_util;
 
