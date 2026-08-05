@@ -168,7 +168,17 @@ struct Node {
       targetsParam @29 :Bool;
       targetsAnnotation @30 :Bool;
     }
+
+    type @36 :Type;
+    # This node represents a `type X = <target>` declaration: a named alias for another type.
+    # Its wire representation and layout are exactly those of the aliased type. A reference to
+    # this node in type position resolves to the aliased type, additionally recording a
+    # back-reference to this node (see Type.typeId / Field.typeId) so that code generators can
+    # preserve the distinct name while remaining wire-compatible.
   }
+
+  startByte @34 :UInt32;
+  endByte @35 :UInt32;
 
   struct SourceInfo {
     # Additional information about a node which is not needed at runtime, but may be useful for
@@ -194,7 +204,8 @@ struct Node {
       # Doc comment on the member.
     }
 
-    # TODO(someday): Record location of the declaration in the original source code.
+    startByte @3 :UInt32;
+    endByte @4 :UInt32;
   }
 }
 
@@ -218,6 +229,12 @@ struct Field {
   discriminantValue @3 :UInt16 = Field.noDiscriminant;
   # If the field is in a union, this is the value which the union's discriminant should take when
   # the field is active.  If the field is not in a union, this is 0xffff.
+
+  typeId @11 :Id;
+  # If non-zero, this field's declared type was written using a `type` alias (newtype) with this
+  # node ID.  For a `slot` field, the underlying type is in `slot.type` (which carries its own
+  # `typeId`); this field-level back-reference exists for `group` fields, which have no
+  # `slot.type` of their own.  Zero means no alias.
 
   union {
     slot :group {
@@ -363,8 +380,8 @@ struct Type {
         # This is actually a reference to a type parameter defined within this scope.
 
         scopeId @19 :Id;
-        # ID of the generic type whose parameter we're referencing. This should be a parent of the
-        # current scope.
+        # ID of the generic type whose parameter we're referencing. This is always either the
+        # current scope's type ID or one of its ancestors' IDs.
 
         parameterIndex @20 :UInt16;
         # Index of the parameter within the generic type's parameter list.
@@ -378,6 +395,11 @@ struct Type {
       }
     }
   }
+
+  typeId @28 :Id;
+  # If non-zero, this type was written using a `type` alias (newtype) with this node ID. The
+  # union above still describes the actual (underlying) type for layout and wire purposes; this
+  # field merely lets code generators recover the alias's name. Zero means no alias.
 }
 
 struct Brand {
@@ -537,6 +559,27 @@ struct CodeGeneratorRequest {
       # information is only meaningful at compile time anyway.
       #
       # (On Zooko's triangle, this is the import's petname according to the importing file.)
+    }
+    fileSourceInfo @3 :FileSourceInfo;
+
+    struct FileSourceInfo {
+      identifiers @0 :List(Identifier);
+
+      struct Identifier {
+        startByte @0 :UInt32;
+        endByte @1 :UInt32;
+
+        union {
+          typeId @2 :UInt64;
+          # Identifier refers to a type. This is the type ID.
+
+          member :group {
+            # Identifier refers to a member of a type.
+            parentTypeId @3 :UInt64;
+            ordinal @4 :UInt16;
+          }
+        }
+      }
     }
   }
 }
