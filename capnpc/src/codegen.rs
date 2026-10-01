@@ -2144,8 +2144,7 @@ fn get_ty_params_of_brand_helper(
 // whose target is a struct pointing at a template node the newtype owns (its `scope_id` is the
 // `type` node). We give such a newtype a semantic trait -- `vec3::Reader` -- so every use site
 // shares one name. Returns the template node's id when `alias_id` is an inline group/union
-// newtype all of whose fields are slots (a "flat" newtype we can currently express as a trait);
-// nested newtype members would need associated types and are handled separately.
+// newtype, or a `type` aliasing one (`type Bar = Foo`), which shares Foo's template.
 fn newtype_template_id(
     ctx: &GeneratorContext,
     alias_id: u64,
@@ -2165,9 +2164,21 @@ fn newtype_template_id(
         return Ok(None);
     };
     if template.get_scope_id() != alias_id {
-        return Ok(None); // aliases a pre-existing struct, not an owned inline template
+        // Not this node's own template. Either it aliases another inline newtype (recorded as
+        // Type.typeId), whose template it shares, or it names a pre-existing struct.
+        let aliased = t.get_type_id();
+        if aliased != 0 {
+            return newtype_template_id(ctx, aliased);
+        }
+        return Ok(None);
     }
     Ok(Some(template_id))
+}
+
+// The inline newtype owning `alias_id`'s template: `alias_id` itself, or for `type Bar = Foo`
+// (Foo an inline group/union newtype), Foo. None if `alias_id` isn't an inline newtype.
+fn inline_newtype_owner(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
+    Ok(newtype_template_id(ctx, alias_id)?.map(|t| ctx.node_map[&t].get_scope_id()))
 }
 
 // A non-union group newtype. Its fields are slots and/or nested-newtype members (group fields
@@ -2300,6 +2311,18 @@ fn generate_newtype_trait(
     node_id: u64,
     node_name: &str,
 ) -> ::capnp::Result<FormattedText> {
+    if let Some(owner) = inline_newtype_owner(ctx, node_id)? {
+        if owner != node_id {
+            // `type Bar = Foo` with Foo an inline newtype: Bar's module re-exports Foo's, so
+            // `bar::Reader` *is* `foo::Reader` and Bar's use sites implement Foo's traits.
+            return Ok(Branch(vec![
+                BlankLine,
+                Line(format!("pub mod {} {{", module_name(node_name))),
+                indent(Line(format!("pub use {}::*;", ctx.get_qualified_module(owner)))),
+                line("}"),
+            ]));
+        }
+    }
     Ok(Branch(vec![
         generate_group_newtype_trait(ctx, node_id, node_name)?,
         generate_union_newtype_trait(ctx, node_id, node_name)?,

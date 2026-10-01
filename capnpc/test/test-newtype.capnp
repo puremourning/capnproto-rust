@@ -99,6 +99,29 @@ struct CrossFile {
   corner @[2, 3, 4] :Import.ImportedVec;   # group newtype -> imported wrapper module
 }
 
+# `type Bar = Foo` where Foo is a group/union newtype: Bar shares Foo's template, and its module
+# re-exports Foo's, so Bar's use sites implement Foo's traits.
+type Point = Vec3;                   # alias of a group newtype
+type ChainedPoint = Point;           # alias of an alias
+type StatusAlias = Status;           # alias of a union newtype
+type ImportedPoint = Import.ImportedVec;  # alias of a cross-file group newtype
+
+type Segment = group {               # template built from an alias
+  from @[0-2] :Point;
+  to @[3-5] :Point;
+}
+
+struct Aliases {
+  corner @[0-2] :Point;
+  late @[3-5] :LatePoint;            # alias declared after this struct
+  chained @[6-8] :ChainedPoint;
+  status @[9-11] :StatusAlias;
+  imported @[12-14] :ImportedPoint;
+  segment @[15-20] :Segment;
+}
+
+type LatePoint = Vec3;
+
 struct PlaceParams {
   # A method's parameters are an ordinary struct, so group/union newtypes reach a method through a
   # named parameter struct like this one. (The `@[...]` ordinal-mapping syntax is only valid on

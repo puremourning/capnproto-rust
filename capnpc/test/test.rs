@@ -2462,6 +2462,63 @@ mod tests {
     }
 
     #[test]
+    fn newtype_alias_of_inline_newtype() {
+        // `type Point = Vec3` (and chains of such aliases) re-export the aliased newtype's module,
+        // so their use sites are usable wherever a Vec3 is.
+        use crate::test_newtype_capnp::{
+            aliases, chained_point, point, segment, status, status_alias, vec3,
+        };
+        use crate::test_newtype_import_capnp::imported_vec;
+
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>, x: f32, y: f32, z: f32) {
+            v.set_x(x);
+            v.set_y(y);
+            v.set_z(z);
+        }
+        fn sum<'a>(v: &impl point::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+        fn z_of<'a>(v: &impl chained_point::Reader<'a>) -> f32 {
+            v.get_z()
+        }
+        fn code_of<'a>(s: &impl status_alias::Reader<'a>) -> i32 {
+            match s.which().unwrap() {
+                status::Which::Code(c) => c,
+                _ => panic!("expected the code arm"),
+            }
+        }
+        fn from_x<'a>(s: &impl segment::Reader<'a>) -> f32 {
+            use vec3::Reader as _; // `From` is bounded by point::Reader, i.e. vec3::Reader
+            s.get_from().get_x()
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<aliases::Builder<'_>>();
+        fill(&mut root.reborrow().get_corner(), 1.0, 2.0, 3.0);
+        fill(&mut root.reborrow().get_late(), 4.0, 5.0, 6.0);
+        fill(&mut root.reborrow().get_chained(), 7.0, 8.0, 9.0);
+        root.reborrow().get_status().set_code(42);
+        root.reborrow().get_imported().set_z(10.0);
+        root.reborrow().get_segment().get_from().set_x(11.0);
+        root.reborrow().get_segment().get_to().set_z(12.0);
+
+        let reader = root.into_reader();
+        assert_eq!(sum(&reader.get_corner()), 6.0);
+        assert_eq!(sum(&reader.get_late()), 15.0);
+        assert_eq!(z_of(&reader.get_chained()), 9.0);
+        assert_eq!(z_of(&reader.get_corner()), 3.0); // a Vec3 use site is a ChainedPoint too
+        assert_eq!(code_of(&reader.get_status()), 42);
+        fn imported_z<'a>(v: &impl imported_vec::Reader<'a>) -> f32 {
+            v.get_z()
+        }
+        assert_eq!(imported_z(&reader.get_imported()), 10.0);
+        assert_eq!(from_x(&reader.get_segment()), 11.0);
+        assert_eq!(reader.get_segment().get_to().get_z(), 12.0);
+        // Distinct use sites don't overlap.
+        assert_eq!(reader.get_segment().get_to().get_x(), 0.0);
+    }
+
+    #[test]
     fn newtype_dyn_erasure() {
         use crate::test_newtype_capnp::{shapes, vec3};
         let mut message = ::capnp::message::Builder::new_default();
