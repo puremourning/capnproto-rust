@@ -11,11 +11,11 @@ name = "capnpc_test_edition_2015"
 path = "test.rs"
 
 [build-dependencies]
-capnpc = { path = "../" }
+capnpc = { package = "capnpc-newtype", path = "../" }
 
 [dependencies]
-capnp = { path = "../../capnp" }
-capnpc = { path = "../" }
+capnp = { package = "capnp-newtype", path = "../../capnp" }
+capnpc = { package = "capnpc-newtype", path = "../" }
 external-crate = { path = "../test/external-crate" }
 
 [lints]

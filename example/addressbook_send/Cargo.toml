@@ -13,10 +13,10 @@ path = "addressbook_send.rs"
 
 
 [build-dependencies]
-capnpc = { path = "../../capnpc" }
+capnpc = { package="capnpc-newtype", path = "../../capnpc" }
 
 [dependencies]
-capnp = { path = "../../capnp" }
+capnp = { package="capnp-newtype", path = "../../capnp" }
 
 [lints]
 workspace = true

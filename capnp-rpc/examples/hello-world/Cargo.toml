@@ -12,10 +12,10 @@ name = "hello-world"
 path = "main.rs"
 
 [build-dependencies]
-capnpc = { path = "../../../capnpc" }
+capnpc = { package = "capnpc-newtype", path = "../../../capnpc" }
 
 [dependencies]
-capnp = { path = "../../../capnp" }
+capnp = { package = "capnp-newtype", path = "../../../capnp" }
 futures = "0.3.0"
 tokio = { version = "1.0.0", features = ["net", "rt", "macros"]}
 tokio-util = { version = "0.7.4", features = ["compat"] }

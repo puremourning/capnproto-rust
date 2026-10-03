@@ -15,9 +15,11 @@ rand = "0.10.1"
 
 [dependencies.capnp]
 path = "../../capnp"
+package = "capnp-newtype"
 
 [build-dependencies.capnpc]
 path = "../../capnpc"
+package = "capnpc-newtype"
 
 [[bin]]
 name = "fill_addressbook"

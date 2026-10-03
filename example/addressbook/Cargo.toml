@@ -13,9 +13,11 @@ path = "addressbook.rs"
 
 [build-dependencies.capnpc]
 path = "../../capnpc"
+package = "capnpc-newtype"
 
 [dependencies.capnp]
 path = "../../capnp"
+package = "capnp-newtype"
 
 [lints]
 workspace = true

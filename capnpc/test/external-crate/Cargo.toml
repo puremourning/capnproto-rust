@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-capnp = { path = "../../../capnp" }
+capnp = { package = "capnp-newtype", path = "../../../capnp" }
 
 [build-dependencies]
-capnpc = { path = "../.." }
+capnpc = { package = "capnpc-newtype", path = "../.." }
 
 [lints]
 workspace = true

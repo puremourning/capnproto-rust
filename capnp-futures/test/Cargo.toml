@@ -12,11 +12,11 @@ name = "capnp_futures_test"
 path = "test.rs"
 
 [build-dependencies]
-capnpc = { path = "../../capnpc" }
+capnpc = { package = "capnpc-newtype", path = "../../capnpc" }
 
 [dependencies]
 capnp-futures = {path = "./../"}
-capnp = { path = "../../capnp" }
+capnp = { package = "capnp-newtype", path = "../../capnp" }
 futures = "0.3.0"
 async-byte-channel = {path = "./../../async-byte-channel"}
 

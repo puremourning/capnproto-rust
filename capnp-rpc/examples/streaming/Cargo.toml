@@ -10,10 +10,10 @@ name = "streaming"
 path = "main.rs"
 
 [build-dependencies]
-capnpc = { path = "../../../capnpc" }
+capnpc = { package="capnpc-newtype", path = "../../../capnpc" }
 
 [dependencies]
-capnp = { path = "../../../capnp" }
+capnp = { package="capnp-newtype", path = "../../../capnp" }
 futures = "0.3.0"
 rand = "0.10.1"
 sha2 = { version = "0.11.0" }

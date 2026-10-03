@@ -1,18 +1,21 @@
 [package]
 
-name = "capnp"
+name = "capnp-newtype"
 version = "0.27.2"
-authors = [ "David Renshaw <dwrenshaw@gmail.com>" ]
+authors = [ "David Renshaw <dwrenshaw@gmail.com>", "Ben Jackson <puremourning@gmail.com>" ]
 license = "MIT"
-description = "runtime library for Cap'n Proto data encoding"
-repository = "https://github.com/capnproto/capnproto-rust"
-documentation = "https://docs.rs/capnp/"
+description = "runtime library for Cap'n Proto data encoding with newtype support"
+repository = "https://github.com/puremourning/capnproto-rust"
+documentation = "https://docs.rs/capnp-newtype/"
 edition = "2021"
 rust-version.workspace = true
 
 readme = "README.md"
 
 keywords = ["encoding", "protocol", "serialization"]
+
+[lib]
+name = "capnp"
 
 [dependencies]
 quickcheck = { version = "1", optional = true }
