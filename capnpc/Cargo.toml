@@ -1,7 +1,7 @@
 [package]
 
 name = "capnpc-newtype"
-version = "0.27.0"
+version = "0.27.1"
 authors = [ "David Renshaw <dwrenshaw@gmail.com>", "Ben Jackson <puremourning@gmail.com>" ]
 license = "MIT"
 description = "Cap'n Proto code generation with newtype support"
@@ -29,7 +29,7 @@ path = "src/capnpc-rust-bootstrap.rs"
 
 [dependencies.capnp]
 package = "capnp-newtype"
-version = "0.27.0"
+version = "0.27.3"
 path = "../capnp"
 
 [lints]

@@ -2462,6 +2462,83 @@ mod tests {
     }
 
     #[test]
+    fn newtype_ids_at_runtime() {
+        // Each newtype module carries its node id, and a field reports the newtypes it was
+        // declared with, nearest first, through runtime introspection.
+        use crate::test_newtype_capnp::{
+            age, aliases, chained_point, cross_file, imported_point, point, shapes, status,
+            status_alias, uuid, vec3,
+        };
+        use crate::test_newtype_import_capnp::{imported_age, imported_id, imported_vec};
+        use capnp::introspect::{Introspect, TypeVariant};
+
+        fn field_ids(ty: capnp::introspect::Type, name: &str) -> &'static [u64] {
+            let TypeVariant::Struct(raw) = ty.which() else {
+                panic!("not a struct");
+            };
+            capnp::schema::StructSchema::new(raw)
+                .get_field_by_name(name)
+                .unwrap()
+                .get_newtype_ids()
+        }
+
+        // An alias module's own id shadows the one its `pub use` brings in.
+        assert_ne!(point::TYPE_ID, vec3::TYPE_ID);
+        assert_ne!(chained_point::TYPE_ID, point::TYPE_ID);
+
+        let a = aliases::Owned::introspect();
+        assert_eq!(field_ids(a, "corner"), &[point::TYPE_ID, vec3::TYPE_ID]);
+        assert_eq!(
+            field_ids(a, "late"),
+            &[
+                crate::test_newtype_capnp::late_point::TYPE_ID,
+                vec3::TYPE_ID
+            ]
+        );
+        assert_eq!(
+            field_ids(a, "chained"),
+            &[chained_point::TYPE_ID, point::TYPE_ID, vec3::TYPE_ID]
+        );
+        assert_eq!(
+            field_ids(a, "status"),
+            &[status_alias::TYPE_ID, status::TYPE_ID]
+        );
+        assert_eq!(
+            field_ids(a, "imported"),
+            &[imported_point::TYPE_ID, imported_vec::TYPE_ID]
+        );
+
+        let s = shapes::Owned::introspect();
+        assert_eq!(field_ids(s, "topLeft"), &[vec3::TYPE_ID]);
+        assert_eq!(field_ids(s, "id"), &[uuid::TYPE_ID]);
+        assert_eq!(field_ids(s, "age"), &[age::TYPE_ID]);
+
+        let c = cross_file::Owned::introspect();
+        assert_eq!(field_ids(c, "id"), &[imported_id::TYPE_ID]);
+        assert_eq!(field_ids(c, "age"), &[imported_age::TYPE_ID]);
+        assert_eq!(field_ids(c, "corner"), &[imported_vec::TYPE_ID]);
+
+        // A use-site group's own members are fields too; plain ones have no newtype.
+        let TypeVariant::Struct(raw) = s.which() else {
+            panic!("not a struct");
+        };
+        let top_left = capnp::schema::StructSchema::new(raw)
+            .get_field_by_name("topLeft")
+            .unwrap()
+            .get_type();
+        assert_eq!(field_ids(top_left, "x"), &[] as &[u64]);
+
+        // Structs without newtype fields report nothing.
+        assert_eq!(
+            field_ids(
+                crate::test_capnp::test_all_types::Owned::introspect(),
+                "int64Field"
+            ),
+            &[] as &[u64]
+        );
+    }
+
+    #[test]
     fn newtype_alias_of_inline_newtype() {
         // `type Point = Vec3` (and chains of such aliases) re-export the aliased newtype's module,
         // so their use sites are usable wherever a Vec3 is.

@@ -178,6 +178,31 @@ impl Field {
             get_annotation_type: self.parent.raw.annotation_types,
         })
     }
+
+    /// The ids of the `type` newtypes this field was declared with, nearest
+    /// first, or empty if it wasn't declared with one.
+    ///
+    /// With `type Point = Vec3;` and `type ChainedPoint = Point;`, a field
+    /// declared `corner :ChainedPoint` gives the ids of `ChainedPoint`,
+    /// `Point` and `Vec3`, in that order. Each newtype's generated module
+    /// has its id as `TYPE_ID`, so `ids.contains(&vec3::TYPE_ID)` asks "is
+    /// this field a `Vec3`, under whatever alias?".
+    ///
+    /// The field's type (`get_type`) is unchanged by this: a group newtype
+    /// is still a struct, and a scalar newtype its underlying type. For a
+    /// list, this describes the list field itself, not its elements.
+    pub fn get_newtype_ids(&self) -> &'static [u64] {
+        match self
+            .parent
+            .raw
+            .generic
+            .field_newtypes
+            .get(self.index as usize)
+        {
+            Some(ids) => ids,
+            None => &[],
+        }
+    }
 }
 
 impl ::core::cmp::PartialEq for Field {

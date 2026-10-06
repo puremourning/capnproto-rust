@@ -2044,6 +2044,66 @@ fn generate_members_by_name(
     Ok(Branch(vec![Line(members_by_name_string)]))
 }
 
+// The `type` newtypes a field was declared with, nearest first. A field declared `corner
+// :ChainedPoint`, where `type ChainedPoint = Point` and `type Point = Vec3`, gives [ChainedPoint,
+// Point, Vec3]. Empty for a field not declared with a newtype. A group field records its newtype
+// in `Field.typeId`; a slot field in its type's `Type.typeId`. Each `type` node records the
+// newtype it aliases (if any) in its own `Type.typeId`, which is how the chain is followed. A
+// newtype whose node isn't in the request ends the chain there.
+fn field_newtype_ids(
+    ctx: &GeneratorContext,
+    field: schema_capnp::field::Reader,
+) -> ::capnp::Result<Vec<u64>> {
+    use capnp::schema_capnp::*;
+    let mut id = field.get_type_id();
+    if id == 0 {
+        if let field::Slot(slot) = field.which()? {
+            id = slot.get_type()?.get_type_id();
+        }
+    }
+    let mut ids = Vec::new();
+    // The schema compiler rejects alias cycles; the `contains` check only stops a malformed
+    // request from looping forever.
+    while id != 0 && !ids.contains(&id) {
+        ids.push(id);
+        let Some(node) = ctx.node_map.get(&id) else {
+            break;
+        };
+        let node::Type(Ok(t)) = node.which()? else {
+            break;
+        };
+        id = t.get_type_id();
+    }
+    Ok(ids)
+}
+
+// `FIELD_NEWTYPES`: for each field index, the newtype ids from `field_newtype_ids`. None (and
+// nothing is emitted) when no field of the struct is declared with a newtype, which keeps
+// generated code for schemas without newtypes unchanged.
+fn generate_field_newtypes(
+    ctx: &GeneratorContext,
+    node_reader: schema_capnp::node::Reader,
+) -> ::capnp::Result<Option<FormattedText>> {
+    let schema_capnp::node::Struct(st) = node_reader.which()? else {
+        return Err(Error::failed("not a struct".into()));
+    };
+    let mut any = false;
+    let mut entries = Vec::new();
+    for field in st.get_fields()? {
+        let ids = field_newtype_ids(ctx, field)?;
+        any |= !ids.is_empty();
+        let ids: Vec<String> = ids.into_iter().map(format_u64).collect();
+        entries.push(format!("&[{}]", ids.join(", ")));
+    }
+    if !any {
+        return Ok(None);
+    }
+    Ok(Some(Line(format!(
+        "pub(crate) static FIELD_NEWTYPES: &[&[u64]] = &[{}];",
+        entries.join(", ")
+    ))))
+}
+
 // We need this to work around the fact that Rust does not allow typedefs
 // with unused type parameters.
 fn get_ty_params_of_brand(
@@ -2145,10 +2205,7 @@ fn get_ty_params_of_brand_helper(
 // `type` node). We give such a newtype a semantic trait -- `vec3::Reader` -- so every use site
 // shares one name. Returns the template node's id when `alias_id` is an inline group/union
 // newtype, or a `type` aliasing one (`type Bar = Foo`), which shares Foo's template.
-fn newtype_template_id(
-    ctx: &GeneratorContext,
-    alias_id: u64,
-) -> ::capnp::Result<Option<u64>> {
+fn newtype_template_id(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
     use capnp::schema_capnp::*;
     let Some(alias) = ctx.node_map.get(&alias_id) else {
         return Ok(None);
@@ -2304,6 +2361,14 @@ fn newtype_trait_methods(
     Ok(methods)
 }
 
+// The id of a `type` newtype's node, as `pub const TYPE_ID` in its module. An alias module
+// (`type Bar = Foo`) declares its own, which takes precedence over the one its `pub use` of
+// Foo's module brings in, so each name reports its own id. It is what
+// `schema::Field::get_newtype_ids` returns, so code can recognise a newtype at runtime.
+fn newtype_type_id_line(node_id: u64) -> FormattedText {
+    Line(format!("pub const TYPE_ID: u64 = {};", format_u64(node_id)))
+}
+
 // Emits the trait module for a newtype: a flat group (`generate_flat_newtype_trait`) or a union
 // (`generate_union_newtype_trait`). Exactly one applies (or neither); each no-ops otherwise.
 fn generate_newtype_trait(
@@ -2318,7 +2383,11 @@ fn generate_newtype_trait(
             return Ok(Branch(vec![
                 BlankLine,
                 Line(format!("pub mod {} {{", module_name(node_name))),
-                indent(Line(format!("pub use {}::*;", ctx.get_qualified_module(owner)))),
+                indent(Line(format!(
+                    "pub use {}::*;",
+                    ctx.get_qualified_module(owner)
+                ))),
+                indent(newtype_type_id_line(node_id)),
                 line("}"),
             ]));
         }
@@ -2456,7 +2525,9 @@ fn any_reader_items(
             inherent.push(Line(format!("pub fn get_{name}(&self) {ret} {{")));
             inherent.push(indent(body));
             inherent.push(line("}"));
-            trait_methods.push(Line(format!("fn get_{name}(&self) {ret} {{ self.get_{name}() }}")));
+            trait_methods.push(Line(format!(
+                "fn get_{name}(&self) {ret} {{ self.get_{name}() }}"
+            )));
             if let field::Slot(s) = field.which()? {
                 if s.get_type()?.is_pointer()? {
                     inherent.push(Line(format!(
@@ -2536,7 +2607,9 @@ fn union_any_reader_items(
             arms.push(Line(format!(
                 "{dvalue} => ::core::result::Result::Ok(Which::{variant}({nested_mod}::AnyReader::new(self.reader, &self.offsets[{start}..{end}]))),"
             )));
-            assoc.push(Line(format!("type {variant} = {nested_mod}::AnyReader<'a>;")));
+            assoc.push(Line(format!(
+                "type {variant} = {nested_mod}::AnyReader<'a>;"
+            )));
             group_variants.push(variant.clone());
             which_type_params.push(format!("{nested_mod}::AnyReader<'a>"));
             cursor += count;
@@ -2649,7 +2722,9 @@ fn any_builder_items(
                     "pub fn {verb}_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ {nested_mod}::AnyBuilder::new(self.builder, &self.offsets[{start}..{end}]) }}"
                 )));
             }
-            trait_methods.push(Line(format!("type {assoc} = {nested_mod}::AnyBuilder<'a>;")));
+            trait_methods.push(Line(format!(
+                "type {assoc} = {nested_mod}::AnyBuilder<'a>;"
+            )));
             trait_methods.push(Line(format!(
                 "fn get_{name}(self) -> Self::{assoc} {{ self.get_{name}() }}"
             )));
@@ -2683,7 +2758,9 @@ fn any_builder_items(
             inherent.push(Line(format!("pub fn get_{name}(self) {ret} {{")));
             inherent.push(indent(get_body));
             inherent.push(line("}"));
-            trait_methods.push(Line(format!("fn get_{name}(self) {ret} {{ self.get_{name}() }}")));
+            trait_methods.push(Line(format!(
+                "fn get_{name}(self) {ret} {{ self.get_{name}() }}"
+            )));
             for m in setter_methods_at(ctx, "0", &name, &field, Some(&off))? {
                 let sig_inherent = m.signature(true);
                 let sig_trait = m.signature(false);
@@ -2760,7 +2837,9 @@ fn union_any_builder_items(
             inherent.push(Line(format!(
                 "pub fn init_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ let b = self.builder; b.set_data_field::<u16>(self.disc_offset as usize, {dvalue}); {nested_mod}::AnyBuilder::new(b, &self.offsets[{start}..{end}]) }}"
             )));
-            assoc.push(Line(format!("type {variant} = {nested_mod}::AnyBuilder<'a>;")));
+            assoc.push(Line(format!(
+                "type {variant} = {nested_mod}::AnyBuilder<'a>;"
+            )));
             trait_methods.push(Line(format!(
                 "fn init_{name}(self) -> Self::{variant} {{ self.init_{name}() }}"
             )));
@@ -2768,7 +2847,8 @@ fn union_any_builder_items(
         } else {
             let off = format!("self.offsets[{cursor}] as usize");
             let guard = unmapped_panic(cursor, &name);
-            for m in setter_methods_at(ctx, "self.disc_offset as usize", &name, &field, Some(&off))? {
+            for m in setter_methods_at(ctx, "self.disc_offset as usize", &name, &field, Some(&off))?
+            {
                 let sig_inherent = m.signature(true);
                 let sig_trait = m.signature(false);
                 let call = format!("self.{}({})", m.name, m.delegate_args);
@@ -2867,6 +2947,7 @@ fn generate_group_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
+        indent(newtype_type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3143,6 +3224,7 @@ fn generate_union_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
+        indent(newtype_type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3334,6 +3416,7 @@ fn generate_scalar_newtype_alias(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {module} {{")),
+        indent(newtype_type_id_line(node_id)),
         indent(items),
         line("}"),
     ]))
@@ -3412,6 +3495,7 @@ fn generate_node(
 
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
+            let field_newtypes = generate_field_newtypes(ctx, *node_reader)?;
             private_mod_interior.push(Branch(vec![
                 Line(fmt!(ctx, "pub(crate) static ARENA: {capnp}::private::arena::GeneratedCodeArena = {capnp}::private::arena::GeneratedCodeArena::new(&ENCODED_NODE);")),
                 Line(fmt!(ctx,"pub(crate) static RAW_SCHEMA: {capnp}::introspect::RawStructSchema = {capnp}::introspect::RawStructSchema::new(")),
@@ -3421,8 +3505,15 @@ fn generate_node(
                     Line("MEMBERS_BY_DISCRIMINANT,".into()),
                     Line("MEMBERS_BY_NAME".into()),
                 ]),
-                Line(");".into()),
+                Line(if field_newtypes.is_some() {
+                    ").with_field_newtypes(FIELD_NEWTYPES);".into()
+                } else {
+                    ");".into()
+                }),
             ]));
+            if let Some(field_newtypes) = field_newtypes {
+                private_mod_interior.push(field_newtypes);
+            }
 
             private_mod_interior.push(generate_members_by_discriminant(*node_reader)?);
             private_mod_interior.push(generate_members_by_name(*node_reader)?);

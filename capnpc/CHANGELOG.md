@@ -1,3 +1,8 @@
+## v0.27.1
+- Emit `pub const TYPE_ID` in every `type` newtype's module (alias modules included).
+- Record each field's newtype ids in the struct schema, for
+  `schema::Field::get_newtype_ids()`. Requires capnp-newtype 0.27.3.
+
 ## v0.27.0
 - Adjust generated code for updated base crate API.
 
