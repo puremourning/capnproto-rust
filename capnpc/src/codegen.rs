@@ -2893,6 +2893,135 @@ fn union_any_builder_items(
     ])
 }
 
+// `capnp::traits::AnyReader` / `AnyBuilder` for a newtype's erased carriers, plus the
+// `DowncastReader` / `DowncastBuilder` impls through which the dynamic API reaches them:
+// `group.downcast::<vec3::AnyReader>()`. The downcast reads the use site's offset table from the
+// group's schema (see `use_site_any_layout`) and checks it against `TYPE_ID` and `LEAF_COUNT`.
+fn any_downcast_impls(
+    ctx: &GeneratorContext,
+    template_id: u64,
+    is_union: bool,
+    has_reader: bool,
+    has_builder: bool,
+) -> ::capnp::Result<Vec<FormattedText>> {
+    let leaves = count_newtype_leaves(ctx, template_id)?;
+    // A union carrier's `new` takes the discriminant offset; a group carrier's doesn't.
+    let disc_arg = if is_union {
+        "discriminant_offset, "
+    } else {
+        ""
+    };
+    let mut items = Vec::new();
+    let mut emit = |kind: &str, raw: &str, value: &str, downcast: &str| {
+        let ident = kind.to_ascii_lowercase();
+        let unused = if is_union { "" } else { "_" };
+        items.push(Line(fmt!(
+            ctx,
+            "impl<'a> {capnp}::traits::{kind}<'a> for {kind}<'a> {{"
+        )));
+        items.push(indent(vec![
+            line("const TYPE_ID: u64 = TYPE_ID;"),
+            Line(format!("const LEAF_COUNT: usize = {leaves};")),
+            Line(fmt!(ctx,
+                "fn from_use_site({ident}: {capnp}::private::layout::{raw}<'a>, offsets: &'a [u32], {unused}discriminant_offset: u32) -> Self {{ Self::new({ident}, {disc_arg}offsets) }}"
+            )),
+        ]));
+        items.push(line("}"));
+        items.push(Line(fmt!(
+            ctx,
+            "impl<'a> {capnp}::dynamic_value::Downcast{value}<'a> for {kind}<'a> {{"
+        )));
+        items.push(indent(Line(fmt!(ctx,
+            "fn downcast_{value_lc}(v: {capnp}::dynamic_value::{value}<'a>) -> Self {{ {capnp}::dynamic_value::{downcast}(v) }}",
+            value_lc = value.to_ascii_lowercase()
+        ))));
+        items.push(line("}"));
+    };
+    if has_reader {
+        emit("AnyReader", "StructReader", "Reader", "downcast_any_reader");
+    }
+    if has_builder {
+        emit(
+            "AnyBuilder",
+            "StructBuilder",
+            "Builder",
+            "downcast_any_builder",
+        );
+    }
+    Ok(items)
+}
+
+// For a group that is a use site of a group or union newtype, the `.with_any_layout(..)` call that
+// records the newtype ids and offset table on its `RAW_SCHEMA`, so the dynamic API can downcast it.
+// The offset table is the one the parent's module already emits for `as_any()` (named by
+// `use_site_offsets_table`); a private item of an ancestor module is visible here. None for any
+// other node.
+fn use_site_any_layout(
+    ctx: &GeneratorContext,
+    node: schema_capnp::node::Reader,
+) -> ::capnp::Result<Option<String>> {
+    use capnp::schema_capnp::*;
+    let node::Struct(instance) = node.which()? else {
+        return Ok(None);
+    };
+    if !instance.get_is_group() {
+        return Ok(None);
+    }
+    let id = node.get_id();
+    let Some(parent) = ctx.node_map.get(&node.get_scope_id()) else {
+        return Ok(None);
+    };
+    let node::Struct(parent_struct) = parent.which()? else {
+        return Ok(None);
+    };
+    for field in parent_struct.get_fields()? {
+        let field::Group(group) = field.which()? else {
+            continue;
+        };
+        if group.get_type_id() != id || field.get_type_id() == 0 {
+            continue;
+        }
+        let alias_id = field.get_type_id();
+        let is_newtype = group_newtype_template_id(ctx, alias_id)?.is_some()
+            || union_newtype_template_id(ctx, alias_id)?.is_some();
+        if !is_newtype {
+            return Ok(None);
+        }
+        let ids: Vec<String> = field_newtype_ids(ctx, field)?
+            .into_iter()
+            .map(format_u64)
+            .collect();
+        let table = use_site_offsets_table(ctx, node.get_scope_id(), id)?;
+        return Ok(Some(format!(
+            ".with_any_layout(&[{}], &{table}, {})",
+            ids.join(", "),
+            instance.get_discriminant_offset()
+        )));
+    }
+    Ok(None)
+}
+
+// The path of the `*_OFFSETS` static for the use-site group `instance_id`, emitted in the module of
+// its parent struct `parent_id`.
+fn use_site_offsets_table(
+    ctx: &GeneratorContext,
+    parent_id: u64,
+    instance_id: u64,
+) -> ::capnp::Result<String> {
+    Ok(format!(
+        "{}::{}",
+        ctx.get_qualified_module(parent_id),
+        use_site_offsets_name(ctx, instance_id)?
+    ))
+}
+
+fn use_site_offsets_name(ctx: &GeneratorContext, instance_id: u64) -> ::capnp::Result<String> {
+    Ok(format!(
+        "{}_OFFSETS",
+        camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
+    ))
+}
+
 // Emits `pub mod <name> { pub trait Reader<'a> {...} pub trait Builder<'a> {...} }` for a non-union
 // group newtype. Slot fields mirror the per-use-site accessors; a nested-newtype member (a group
 // field) is surfaced as an associated type bounded by that newtype's trait, plus a getter.
@@ -2941,8 +3070,18 @@ fn generate_group_newtype_trait(
         indent(builder_items),
         line("}"),
     ];
-    module_items.extend(any_reader_items(ctx, template_id)?);
-    module_items.extend(any_builder_items(ctx, template_id)?);
+    let any_reader = any_reader_items(ctx, template_id)?;
+    let any_builder = any_builder_items(ctx, template_id)?;
+    let downcasts = any_downcast_impls(
+        ctx,
+        template_id,
+        false,
+        !any_reader.is_empty(),
+        !any_builder.is_empty(),
+    )?;
+    module_items.extend(any_reader);
+    module_items.extend(any_builder);
+    module_items.extend(downcasts);
 
     Ok(Branch(vec![
         BlankLine,
@@ -3083,10 +3222,7 @@ fn generate_group_newtype_impl(
         let mut offsets = Vec::new();
         collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
         let n = offsets.len();
-        let table = format!(
-            "{}_OFFSETS",
-            camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
-        );
+        let table = use_site_offsets_name(ctx, instance_id)?;
         any_items.push(BlankLine);
         any_items.push(Line(format!(
             "static {table}: [u32; {n}] = [{}];",
@@ -3218,8 +3354,18 @@ fn generate_union_newtype_trait(
         indent(builder_items),
         line("}"),
     ];
-    module_items.extend(union_any_reader_items(ctx, template_id)?);
-    module_items.extend(union_any_builder_items(ctx, template_id)?);
+    let any_reader = union_any_reader_items(ctx, template_id)?;
+    let any_builder = union_any_builder_items(ctx, template_id)?;
+    let downcasts = any_downcast_impls(
+        ctx,
+        template_id,
+        true,
+        !any_reader.is_empty(),
+        !any_builder.is_empty(),
+    )?;
+    module_items.extend(any_reader);
+    module_items.extend(any_builder);
+    module_items.extend(downcasts);
 
     Ok(Branch(vec![
         BlankLine,
@@ -3333,10 +3479,7 @@ fn generate_union_newtype_impl(
     collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
     let n = offsets.len();
     let disc = instance.get_discriminant_offset();
-    let table = format!(
-        "{}_OFFSETS",
-        camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
-    );
+    let table = use_site_offsets_name(ctx, instance_id)?;
     let any_items = vec![
         BlankLine,
         Line(format!(
@@ -3496,6 +3639,14 @@ fn generate_node(
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
             let field_newtypes = generate_field_newtypes(ctx, *node_reader)?;
+            let mut raw_schema_end = ")".to_string();
+            if field_newtypes.is_some() {
+                raw_schema_end += ".with_field_newtypes(FIELD_NEWTYPES)";
+            }
+            if let Some(any_layout) = use_site_any_layout(ctx, *node_reader)? {
+                raw_schema_end += &any_layout;
+            }
+            raw_schema_end += ";";
             private_mod_interior.push(Branch(vec![
                 Line(fmt!(ctx, "pub(crate) static ARENA: {capnp}::private::arena::GeneratedCodeArena = {capnp}::private::arena::GeneratedCodeArena::new(&ENCODED_NODE);")),
                 Line(fmt!(ctx,"pub(crate) static RAW_SCHEMA: {capnp}::introspect::RawStructSchema = {capnp}::introspect::RawStructSchema::new(")),
@@ -3505,11 +3656,7 @@ fn generate_node(
                     Line("MEMBERS_BY_DISCRIMINANT,".into()),
                     Line("MEMBERS_BY_NAME".into()),
                 ]),
-                Line(if field_newtypes.is_some() {
-                    ").with_field_newtypes(FIELD_NEWTYPES);".into()
-                } else {
-                    ");".into()
-                }),
+                Line(raw_schema_end),
             ]));
             if let Some(field_newtypes) = field_newtypes {
                 private_mod_interior.push(field_newtypes);

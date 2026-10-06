@@ -41,6 +41,49 @@ pub trait IntoInternalStructBuilder<'a> {
     fn into_internal_struct_builder(self) -> StructBuilder<'a>;
 }
 
+/// The reader every group or union `type` newtype generates: one type that
+/// reads the newtype at any of its use sites.
+///
+/// Inlining lets each struct place a newtype's members wherever they fit,
+/// so a use site is described by the parent's raw reader plus an offset
+/// table saying where each member lives. Typed code gets one from a use
+/// site's `as_any()`. Dynamic code gets one with
+/// `dynamic_value::Reader::downcast::<vec3::AnyReader>()` on the group,
+/// which reads the same table from the schema.
+pub trait AnyReader<'a>: Sized {
+    /// The id of the `type` declaration this reads (not of an alias of it).
+    const TYPE_ID: u64;
+
+    /// How many entries a use site's offset table has.
+    const LEAF_COUNT: usize;
+
+    /// Builds the reader over one use site. `discriminant_offset` is used
+    /// only by union newtypes. Generated code and `downcast` call this;
+    /// other code normally doesn't.
+    fn from_use_site(
+        reader: StructReader<'a>,
+        offsets: &'a [u32],
+        discriminant_offset: u32,
+    ) -> Self;
+}
+
+/// The builder counterpart of [`AnyReader`].
+pub trait AnyBuilder<'a>: Sized {
+    /// The id of the `type` declaration this writes (not of an alias of it).
+    const TYPE_ID: u64;
+
+    /// How many entries a use site's offset table has.
+    const LEAF_COUNT: usize;
+
+    /// Builds the builder over one use site; see
+    /// [`AnyReader::from_use_site`].
+    fn from_use_site(
+        builder: StructBuilder<'a>,
+        offsets: &'a [u32],
+        discriminant_offset: u32,
+    ) -> Self;
+}
+
 /// Trait for all types that can be converted to a low-level `ListReader`.
 pub trait IntoInternalListReader<'a> {
     fn into_internal_list_reader(self) -> ListReader<'a>;

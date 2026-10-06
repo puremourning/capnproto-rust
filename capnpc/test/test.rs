@@ -2933,6 +2933,98 @@ mod tests {
     }
 
     #[test]
+    fn newtype_any_downcast() {
+        // The dynamic API reaches the same erased carriers as the typed `as_any()`: a use-site
+        // group downcasts to the newtype's `AnyReader` / `AnyBuilder`, through any alias, using the
+        // offset table recorded in the group's schema.
+        use crate::test_newtype_capnp::{aliases, order_type, point, price, shapes, vec3};
+        use capnp::{dynamic_struct, dynamic_value};
+
+        let mut message = ::capnp::message::Builder::new_default();
+        {
+            let root: dynamic_value::Builder<'_> =
+                message.init_root::<shapes::Builder<'_>>().into();
+            let mut root: dynamic_struct::Builder<'_> = root.downcast();
+            let mut bottom_right: vec3::AnyBuilder<'_> =
+                root.reborrow().get_named("bottomRight").unwrap().downcast();
+            bottom_right.set_x(10.0);
+            bottom_right.set_z(30.0);
+            let mut order: order_type::AnyBuilder<'_> =
+                root.reborrow().get_named("order").unwrap().downcast();
+            order.set_cancel(7);
+        }
+        let reader = message.get_root_as_reader::<shapes::Reader<'_>>().unwrap();
+        // Written dynamically at this use site's offsets, as the typed reader sees.
+        assert_eq!(reader.reborrow().get_bottom_right().get_x(), 10.0);
+        assert_eq!(reader.reborrow().get_bottom_right().get_z(), 30.0);
+        assert_eq!(reader.reborrow().get_top_left().get_x(), 0.0);
+
+        let root: dynamic_value::Reader<'_> = reader.reborrow().into();
+        let root: dynamic_struct::Reader<'_> = root.downcast();
+        let group = |name| root.get_named(name).unwrap();
+        let bottom_right: vec3::AnyReader<'_> = group("bottomRight").downcast();
+        assert_eq!(bottom_right.get_z(), 30.0);
+        // A union newtype: the discriminant offset comes from the schema too.
+        let order: order_type::AnyReader<'_> = group("order").downcast();
+        match order.which().unwrap() {
+            order_type::Which::Cancel(n) => assert_eq!(n, 7),
+            _ => panic!("expected Cancel"),
+        }
+
+        // A group's schema reports its newtype ids, so a caller can check before downcasting.
+        let dynamic_value::Reader::Struct(top_left) = group("topLeft") else {
+            panic!("not a group");
+        };
+        assert_eq!(top_left.get_schema().get_newtype_ids(), &[vec3::TYPE_ID]);
+        let dynamic_value::Reader::Struct(prices) = group("prices") else {
+            panic!("not a group");
+        };
+        // A nested member's use-site group is a use site in its own right.
+        let limit: price::AnyReader<'_> = prices.get_named("limit").unwrap().downcast();
+        assert_eq!(limit.get_value(), 0);
+
+        // Through an alias chain: `chained` is a ChainedPoint, which is a Point, which is a Vec3.
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut aliases_root = message.init_root::<aliases::Builder<'_>>();
+        aliases_root.reborrow().get_chained().set_y(2.5);
+        let root: dynamic_value::Reader<'_> = aliases_root.into_reader().into();
+        let root: dynamic_struct::Reader<'_> = root.downcast();
+        let chained: point::AnyReader<'_> = root.get_named("chained").unwrap().downcast();
+        assert_eq!(chained.get_y(), 2.5);
+    }
+
+    #[test]
+    #[should_panic(expected = "was not declared as type")]
+    fn newtype_any_downcast_rejects_other_newtypes() {
+        use crate::test_newtype_capnp::{shapes, status};
+        use capnp::{dynamic_struct, dynamic_value};
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let root: dynamic_value::Reader<'_> = message
+            .init_root::<shapes::Builder<'_>>()
+            .into_reader()
+            .into();
+        let root: dynamic_struct::Reader<'_> = root.downcast();
+        let _: status::AnyReader<'_> = root.get_named("topLeft").unwrap().downcast();
+    }
+
+    #[test]
+    #[should_panic(expected = "was not declared as type")]
+    fn newtype_any_downcast_rejects_plain_groups() {
+        use crate::test_capnp::test_groups;
+        use crate::test_newtype_capnp::vec3;
+        use capnp::{dynamic_struct, dynamic_value};
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let root: dynamic_value::Reader<'_> = message
+            .init_root::<test_groups::Builder<'_>>()
+            .into_reader()
+            .into();
+        let root: dynamic_struct::Reader<'_> = root.downcast();
+        let _: vec3::AnyReader<'_> = root.get_named("groups").unwrap().downcast();
+    }
+
+    #[test]
     fn newtype_explicit_defaults() {
         // A newtype field with an explicit default (`scale = 100`) reads it when unset -- via the
         // concrete reader, the trait, and the erased `AnyReader`.

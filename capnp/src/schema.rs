@@ -29,6 +29,17 @@ impl StructSchema {
         self.proto
     }
 
+    /// For a group declared with a group or union `type` newtype, the ids
+    /// of that newtype and the newtypes it aliases, nearest first; the same
+    /// as the parent field's [`Field::get_newtype_ids`]. Empty for any
+    /// other struct or group.
+    ///
+    /// A group with `ids.contains(&vec3::TYPE_ID)` can be downcast to
+    /// `vec3::AnyReader` (or `AnyBuilder`).
+    pub fn get_newtype_ids(&self) -> &'static [u64] {
+        self.raw.generic.newtype_ids
+    }
+
     pub fn get_fields(self) -> crate::Result<FieldList> {
         if let node::Struct(s) = self.proto.which()? {
             Ok(FieldList {
