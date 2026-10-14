@@ -40,6 +40,38 @@ impl StructSchema {
         self.raw.generic.newtype_ids
     }
 
+    /// The type bound to parameter `index` of the generic scope `scope_id`,
+    /// in the branding this schema describes, or `None` if this struct has
+    /// no such parameter in scope.
+    ///
+    /// `scope_id` is the id of the node declaring the parameter: this
+    /// struct itself, or an enclosing generic struct (or interface, for a
+    /// method's parameter or result struct). With
+    /// `struct Outer(T) { struct Inner(U) { .. } }`, the schema of
+    /// `Outer(Text).Inner(Data)` gives `Text` for `(Outer's id, 0)` and
+    /// `Data` for `(Inner's id, 0)`. A group binds the same parameters as
+    /// its enclosing struct. A parameter left unbound reads as `AnyPointer`.
+    ///
+    /// Bindings tell apart instantiations that differ only in a parameter
+    /// no field uses: `Foo(Text)` and `Foo(Data)` give different bindings.
+    /// [`get_brand_scopes`](Self::get_brand_scopes) enumerates the valid
+    /// `(scope_id, index)` pairs.
+    pub fn get_brand_binding(&self, scope_id: u64, index: u16) -> Option<introspect::Type> {
+        self.raw.brand_binding(scope_id, index)
+    }
+
+    /// The generic scopes whose parameters this struct binds, outermost
+    /// first; see [`get_brand_binding`](Self::get_brand_binding). Only
+    /// scopes that declare parameters are listed, so this is empty for a
+    /// struct with no generic parameters in scope.
+    ///
+    /// Scopes are a property of the struct's declaration, not of its
+    /// branding: every instantiation of a generic struct gives the same
+    /// list.
+    pub fn get_brand_scopes(&self) -> &'static [introspect::BrandScope] {
+        self.raw.generic.brand_scopes
+    }
+
     pub fn get_fields(self) -> crate::Result<FieldList> {
         if let node::Struct(s) = self.proto.which()? {
             Ok(FieldList {
@@ -679,6 +711,19 @@ mod tests {
         assert_eq!(node_schema, node_schema);
         assert_eq!(cgr_schema, cgr_schema);
         assert_ne!(node_schema, cgr_schema);
+    }
+
+    #[test]
+    fn non_generic_schema_has_no_brand_bindings() {
+        let crate::introspect::TypeVariant::Struct(schema) =
+            crate::schema_capnp::node::Owned::introspect().which()
+        else {
+            panic!("Expected a struct schema");
+        };
+        let schema = crate::schema::StructSchema::new(schema);
+        assert!(schema.get_brand_scopes().is_empty());
+        let id = schema.get_proto().get_id();
+        assert_eq!(schema.get_brand_binding(id, 0), None);
     }
 
     #[test]

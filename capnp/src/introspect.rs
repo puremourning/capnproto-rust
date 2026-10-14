@@ -273,6 +273,42 @@ pub struct RawStructSchema {
     /// the parent. This is the table the generated `as_any()` hands to
     /// `AnyReader::new`.
     pub(crate) any_table: Option<&'static crate::traits::UseSiteTable<'static>>,
+
+    /// The brand scopes whose parameters this struct's schema binds,
+    /// outermost first. Empty for a struct with no generic parameters in
+    /// scope.
+    pub(crate) brand_scopes: &'static [BrandScope],
+}
+
+/// A generic scope whose parameters a struct schema binds: either the
+/// struct itself or one of its enclosing generic structs or interfaces.
+///
+/// See [`crate::schema::StructSchema::get_brand_scopes`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct BrandScope {
+    scope_id: u64,
+    param_count: u16,
+}
+
+impl BrandScope {
+    /// Constructs a new `BrandScope`. Intended to be called by generated code.
+    pub const fn new(scope_id: u64, param_count: u16) -> Self {
+        Self {
+            scope_id,
+            param_count,
+        }
+    }
+
+    /// The id of the node that declares the parameters.
+    pub fn scope_id(&self) -> u64 {
+        self.scope_id
+    }
+
+    /// The number of parameters the node declares. Their bindings are at
+    /// indices `0..param_count`.
+    pub fn param_count(&self) -> u16 {
+        self.param_count
+    }
 }
 
 impl RawStructSchema {
@@ -291,12 +327,19 @@ impl RawStructSchema {
             field_newtypes: &[],
             newtype_ids: &[],
             any_table: None,
+            brand_scopes: &[],
         }
     }
 
     /// Sets the per-field newtype ids; see [`crate::schema::Field::get_newtype_ids`].
     pub const fn with_field_newtypes(mut self, field_newtypes: &'static [&'static [u64]]) -> Self {
         self.field_newtypes = field_newtypes;
+        self
+    }
+
+    /// Sets the brand scopes; see [`crate::schema::StructSchema::get_brand_scopes`].
+    pub const fn with_brand_scopes(mut self, brand_scopes: &'static [BrandScope]) -> Self {
+        self.brand_scopes = brand_scopes;
         self
     }
 
@@ -383,7 +426,6 @@ impl RawBrandedStructSchema {
     }
 
     /// The type bound to parameter `index` of brand scope `scope_id`.
-    #[allow(dead_code)] // TODO: exposed through `StructSchema::get_brand_binding` next.
     pub(crate) fn brand_binding(&self, scope_id: u64, index: u16) -> Option<Type> {
         match self.brand {
             StructBrand::Compiled { brand_binding, .. } => brand_binding(scope_id, index),

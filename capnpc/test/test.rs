@@ -62,6 +62,9 @@ capnp::generated_code!(pub mod test_output_path_capnp, "inner-output-path/test_o
 mod test_util;
 
 #[cfg(test)]
+mod brand_bindings;
+
+#[cfg(test)]
 mod dynamic;
 
 #[cfg(test)]

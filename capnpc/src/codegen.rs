@@ -1761,6 +1761,98 @@ fn generate_pipeline_getter(
     }
 }
 
+// The generic scopes a struct node's Rust type carries parameters for, outermost first, as
+// (scope id, parameter names). This walks the same chain as `get_type_parameters`, so
+// concatenating the names gives the Rust type's parameter list: brand parameter `i` of scope
+// `id` is the Rust parameter with that name. Scopes without parameters (groups, non-generic
+// parents) are omitted.
+fn get_brand_scopes(
+    ctx: &GeneratorContext,
+    node_id: u64,
+) -> ::capnp::Result<Vec<(u64, Vec<String>)>> {
+    let mut current_node_id = node_id;
+    let mut scopes = Vec::new();
+    loop {
+        let current_node = ctx.node_map[&current_node_id];
+        let mut params = Vec::new();
+        for param in current_node.get_parameters()? {
+            params.push(param.get_name()?.to_string()?);
+        }
+        if !params.is_empty() {
+            scopes.push((current_node_id, params));
+        }
+        current_node_id = match ctx.node_parents.get(&current_node_id).copied() {
+            Some(0) | None => break,
+            Some(id) => id,
+        };
+    }
+    scopes.reverse();
+    Ok(scopes)
+}
+
+// For a generic struct node, a `get_brand_binding` function mapping (scope id, parameter
+// index) to the Type bound to that parameter. Non-generic nodes get nothing: they use the
+// shared `introspect::no_brand_bindings`.
+fn generate_get_brand_binding(
+    ctx: &GeneratorContext,
+    node_reader: schema_capnp::node::Reader,
+) -> ::capnp::Result<FormattedText> {
+    if !node_reader.get_is_generic() {
+        return Ok(Branch(Vec::new()));
+    }
+    let mut branches = Vec::new();
+    for (scope_id, params) in get_brand_scopes(ctx, node_reader.get_id())? {
+        for (index, param) in params.iter().enumerate() {
+            branches.push(Line(fmt!(
+                ctx,
+                "({scope_id:#x}, {index}) => ::core::option::Option::Some(<{param} as {capnp}::introspect::Introspect>::introspect()),"
+            )));
+        }
+    }
+    branches.push(Line("_ => ::core::option::Option::None,".into()));
+    let params = node_reader.parameters_texts(ctx);
+    Ok(Branch(vec![
+        Line(fmt!(
+            ctx,
+            "pub(crate) fn get_brand_binding<{0}>(scope_id: u64, index: u16) -> ::core::option::Option<{capnp}::introspect::Type> {1} {{",
+            params.params,
+            params.where_clause
+        )),
+        indent(vec![
+            Line("match (scope_id, index) {".into()),
+            indent(branches),
+            Line("}".into()),
+        ]),
+        Line("}".into()),
+    ]))
+}
+
+// The `.with_brand_scopes(..)` call for a struct node's `RAW_SCHEMA`, if it has any.
+fn brand_scopes_builder(
+    ctx: &GeneratorContext,
+    node_reader: schema_capnp::node::Reader,
+) -> ::capnp::Result<String> {
+    if !node_reader.get_is_generic() {
+        return Ok(String::new());
+    }
+    let scopes = get_brand_scopes(ctx, node_reader.get_id())?;
+    if scopes.is_empty() {
+        return Ok(String::new());
+    }
+    let scopes = scopes
+        .iter()
+        .map(|(id, params)| {
+            fmt!(
+                ctx,
+                "{capnp}::introspect::BrandScope::new({id:#x}, {})",
+                params.len()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Ok(format!(".with_brand_scopes(&[{scopes}])"))
+}
+
 fn generate_get_field_types(
     ctx: &GeneratorContext,
     node_reader: schema_capnp::node::Reader,
@@ -3601,12 +3693,17 @@ fn generate_node(
 
             private_mod_interior.push(generate_get_field_types(ctx, *node_reader)?);
             private_mod_interior.push(generate_get_annotation_types(ctx, *node_reader)?);
-            let brand_binding = fmt!(ctx, "{capnp}::introspect::no_brand_bindings");
+            private_mod_interior.push(generate_get_brand_binding(ctx, *node_reader)?);
+            let brand_binding = if is_generic {
+                format!("_private::get_brand_binding::<{}>", params.params)
+            } else {
+                fmt!(ctx, "{capnp}::introspect::no_brand_bindings")
+            };
 
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
             let field_newtypes = generate_field_newtypes(ctx, *node_reader)?;
-            let mut raw_schema_end = ")".to_string();
+            let mut raw_schema_end = ")".to_string() + &brand_scopes_builder(ctx, *node_reader)?;
             if field_newtypes.is_some() {
                 raw_schema_end += ".with_field_newtypes(FIELD_NEWTYPES)";
             }
