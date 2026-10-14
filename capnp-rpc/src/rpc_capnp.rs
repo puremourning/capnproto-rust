@@ -2,7 +2,7 @@
 // DO NOT EDIT.
 // source: rpc.capnp
 // capnp binary version: 2.0.0
-// capnpc crate version: 0.27.0-alpha
+// capnpc crate version: 0.27.2
 
 pub mod message {
     pub use self::Which::{
@@ -14,12 +14,15 @@ pub mod message {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -58,12 +61,15 @@ pub mod message {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -325,12 +331,15 @@ pub mod message {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -1163,12 +1172,15 @@ pub mod bootstrap {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -1207,12 +1219,15 @@ pub mod bootstrap {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -1304,12 +1319,15 @@ pub mod bootstrap {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -1501,12 +1519,15 @@ pub mod call {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -1545,12 +1566,15 @@ pub mod call {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -1680,12 +1704,15 @@ pub mod call {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -2099,12 +2126,13 @@ pub mod call {
         impl ::capnp::introspect::Introspect for Owned {
             fn introspect() -> ::capnp::introspect::Type {
                 ::capnp::introspect::TypeVariant::Struct(
-                    ::capnp::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    },
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
                 )
                 .into()
             }
@@ -2145,12 +2173,13 @@ pub mod call {
                 Self::Struct(::capnp::dynamic_struct::Reader::new(
                     reader.reader,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -2250,12 +2279,13 @@ pub mod call {
                 Self::Struct(::capnp::dynamic_struct::Builder::new(
                     builder.builder,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -2492,12 +2522,15 @@ pub mod return_ {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -2536,12 +2569,15 @@ pub mod return_ {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -2680,12 +2716,15 @@ pub mod return_ {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -3129,12 +3168,15 @@ pub mod finish {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -3173,12 +3215,15 @@ pub mod finish {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -3270,12 +3315,15 @@ pub mod finish {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -3489,12 +3537,15 @@ pub mod resolve {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -3533,12 +3584,15 @@ pub mod resolve {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -3654,12 +3708,15 @@ pub mod resolve {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -3928,12 +3985,15 @@ pub mod release {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -3972,12 +4032,15 @@ pub mod release {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -4065,12 +4128,15 @@ pub mod release {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -4250,12 +4316,15 @@ pub mod disembargo {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -4294,12 +4363,15 @@ pub mod disembargo {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -4394,12 +4466,15 @@ pub mod disembargo {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -4599,12 +4674,13 @@ pub mod disembargo {
         impl ::capnp::introspect::Introspect for Owned {
             fn introspect() -> ::capnp::introspect::Type {
                 ::capnp::introspect::TypeVariant::Struct(
-                    ::capnp::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    },
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
                 )
                 .into()
             }
@@ -4645,12 +4721,13 @@ pub mod disembargo {
                 Self::Struct(::capnp::dynamic_struct::Reader::new(
                     reader.reader,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -4746,12 +4823,13 @@ pub mod disembargo {
                 Self::Struct(::capnp::dynamic_struct::Builder::new(
                     builder.builder,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -4999,12 +5077,15 @@ pub mod provide {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -5043,12 +5124,15 @@ pub mod provide {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5151,12 +5235,15 @@ pub mod provide {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5394,12 +5481,15 @@ pub mod accept {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -5438,12 +5528,15 @@ pub mod accept {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5539,12 +5632,15 @@ pub mod accept {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5761,12 +5857,15 @@ pub mod join {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -5805,12 +5904,15 @@ pub mod join {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5913,12 +6015,15 @@ pub mod join {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6156,12 +6261,15 @@ pub mod message_target {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -6200,12 +6308,15 @@ pub mod message_target {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6305,12 +6416,15 @@ pub mod message_target {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6525,12 +6639,15 @@ pub mod payload {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -6569,12 +6686,15 @@ pub mod payload {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6677,12 +6797,15 @@ pub mod payload {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6909,12 +7032,15 @@ pub mod cap_descriptor {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -6953,12 +7079,15 @@ pub mod cap_descriptor {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7082,12 +7211,15 @@ pub mod cap_descriptor {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7468,12 +7600,15 @@ pub mod promised_answer {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -7512,12 +7647,15 @@ pub mod promised_answer {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7616,12 +7754,15 @@ pub mod promised_answer {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7842,12 +7983,13 @@ pub mod promised_answer {
         impl ::capnp::introspect::Introspect for Owned {
             fn introspect() -> ::capnp::introspect::Type {
                 ::capnp::introspect::TypeVariant::Struct(
-                    ::capnp::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    },
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
                 )
                 .into()
             }
@@ -7888,12 +8030,13 @@ pub mod promised_answer {
                 Self::Struct(::capnp::dynamic_struct::Reader::new(
                     reader.reader,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -7985,12 +8128,13 @@ pub mod promised_answer {
                 Self::Struct(::capnp::dynamic_struct::Builder::new(
                     builder.builder,
                     ::capnp::schema::StructSchema::new(
-                        ::capnp::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        ::capnp::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            ::capnp::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     ),
                 ))
             }
@@ -8185,12 +8329,15 @@ pub mod third_party_cap_descriptor {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -8229,12 +8376,15 @@ pub mod third_party_cap_descriptor {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -8326,12 +8476,15 @@ pub mod third_party_cap_descriptor {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -8522,12 +8675,15 @@ pub mod exception {
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
         fn introspect() -> ::capnp::introspect::Type {
-            ::capnp::introspect::TypeVariant::Struct(::capnp::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            ::capnp::introspect::TypeVariant::Struct(
+                ::capnp::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    ::capnp::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -8566,12 +8722,15 @@ pub mod exception {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Reader::new(
                 reader.reader,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -8688,12 +8847,15 @@ pub mod exception {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(::capnp::dynamic_struct::Builder::new(
                 builder.builder,
-                ::capnp::schema::StructSchema::new(::capnp::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                ::capnp::schema::StructSchema::new(
+                    ::capnp::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        ::capnp::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }

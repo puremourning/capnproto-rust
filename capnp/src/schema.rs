@@ -1,7 +1,7 @@
 //! Convenience wrappers of the datatypes defined in schema.capnp.
 
 use crate::dynamic_value;
-use crate::introspect::{self, RawBrandedStructSchema, RawEnumSchema};
+use crate::introspect::{self, AnnotationSource, RawBrandedStructSchema, RawEnumSchema};
 use crate::private::layout;
 use crate::schema_capnp::{annotation, enumerant, field, node};
 use crate::struct_list;
@@ -124,7 +124,7 @@ impl StructSchema {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: None,
-            get_annotation_type: self.raw.annotation_types,
+            source: self.raw.annotation_source(),
         })
     }
 }
@@ -154,7 +154,7 @@ impl ::core::fmt::Debug for StructSchema {
         // Two schemas with the same display name are unequal if their brandings
         // differ, so also include the type id.
         match self.proto.get_display_name().map(|n| n.to_str()) {
-            Ok(Ok(name)) => write!(f, "StructSchema({name}, {:?})", self.raw.type_id),
+            Ok(Ok(name)) => write!(f, "StructSchema({name}, {:?})", self.raw.brand),
             _ => write!(f, "StructSchema({:?})", self.raw),
         }
     }
@@ -186,7 +186,7 @@ impl Field {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: Some(self.index),
-            get_annotation_type: self.parent.raw.annotation_types,
+            source: self.parent.raw.annotation_source(),
         })
     }
 
@@ -258,7 +258,7 @@ impl FieldList {
         Field {
             proto: self.fields.get(index as u32),
             index,
-            ty: (self.parent.raw.field_types)(index),
+            ty: self.parent.raw.field_type(index),
             parent: self.parent,
         }
     }
@@ -305,7 +305,7 @@ impl FieldSubset {
         Field {
             proto: self.fields.get(index as u32),
             index,
-            ty: (self.parent.raw.field_types)(index),
+            ty: self.parent.raw.field_type(index),
             parent: self.parent,
         }
     }
@@ -366,7 +366,7 @@ impl EnumSchema {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: None,
-            get_annotation_type: self.raw.annotation_types,
+            source: self.raw.annotations,
         })
     }
 }
@@ -425,7 +425,7 @@ impl Enumerant {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: Some(self.ordinal),
-            get_annotation_type: self.parent.raw.annotation_types,
+            source: self.parent.raw.annotations,
         })
     }
 }
@@ -525,7 +525,7 @@ impl Annotation {
 pub struct AnnotationList {
     annotations: struct_list::Reader<'static, annotation::Owned>,
     child_index: Option<u16>,
-    get_annotation_type: fn(Option<u16>, u32) -> introspect::Type,
+    source: AnnotationSource,
 }
 
 impl AnnotationList {
@@ -539,7 +539,7 @@ impl AnnotationList {
 
     pub fn get(self, index: u32) -> Annotation {
         let proto = self.annotations.get(index);
-        let ty = (self.get_annotation_type)(self.child_index, index);
+        let ty = self.source.get(self.child_index, index);
         Annotation { proto, ty }
     }
 

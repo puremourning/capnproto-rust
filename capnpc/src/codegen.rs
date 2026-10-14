@@ -3601,6 +3601,7 @@ fn generate_node(
 
             private_mod_interior.push(generate_get_field_types(ctx, *node_reader)?);
             private_mod_interior.push(generate_get_annotation_types(ctx, *node_reader)?);
+            let brand_binding = fmt!(ctx, "{capnp}::introspect::no_brand_bindings");
 
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
@@ -3770,7 +3771,7 @@ fn generate_node(
                     Branch(vec![
                         Line("#[derive(Copy, Clone)]".into()),
                         line("pub struct Owned(());"),
-                        Line(fmt!(ctx,"impl {capnp}::introspect::Introspect for Owned {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types, annotation_types: _private::get_annotation_types, type_id: ::core::any::TypeId::of::<Owned>() }}).into() }} }}")),
+                        Line(fmt!(ctx,"impl {capnp}::introspect::Introspect for Owned {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types, _private::get_annotation_types, {brand_binding}, ::core::any::TypeId::of::<Owned>())).into() }} }}")),
                         Line(fmt!(ctx, "impl {capnp}::traits::Owned for Owned {{ type Reader<'a> = Reader<'a>; type Builder<'a> = Builder<'a>; }}")),
                         Line(fmt!(ctx,"impl {capnp}::traits::OwnedStruct for Owned {{ type Reader<'a> = Reader<'a>; type Builder<'a> = Builder<'a>; }}")),
                         Line(fmt!(ctx,"impl {capnp}::traits::Pipelined for Owned {{ type Pipeline = Pipeline; }}"))
@@ -3781,7 +3782,7 @@ fn generate_node(
                         Line(format!("pub struct Owned<{}> {{", params.params)),
                             indent(Line(params.phantom_data_type.clone())),
                         line("}"),
-                        Line(fmt!(ctx,"impl <{0}> {capnp}::introspect::Introspect for Owned <{0}> {1} {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>() }}).into() }} }}",
+                        Line(fmt!(ctx,"impl <{0}> {capnp}::introspect::Introspect for Owned <{0}> {1} {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>())).into() }} }}",
                             params.params, params.where_clause)),
                         Line(fmt!(ctx,"impl <{0}> {capnp}::traits::Owned for Owned <{0}> {1} {{ type Reader<'a> = Reader<'a, {0}>; type Builder<'a> = Builder<'a, {0}>; }}",
                             params.params, params.where_clause)),
@@ -3832,7 +3833,7 @@ fn generate_node(
                             params.params, params.where_clause)),
                 indent(vec![
                     Line(format!("fn from(reader: Reader<'a,{0}>) -> Self {{", params.params)),
-                    indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Reader::new(reader.reader, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>()}})))", params.params))),
+                    indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Reader::new(reader.reader, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>()))))", params.params))),
                     line("}")
                 ]),
                 line("}"),
@@ -3935,7 +3936,7 @@ fn generate_node(
                             params.params, params.where_clause)),
                 indent(vec![
                         Line(format!("fn from(builder: Builder<'a,{0}>) -> Self {{", params.params)),
-                        indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Builder::new(builder.builder, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>()}})))", params.params))),
+                        indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Builder::new(builder.builder, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>()))))", params.params))),
                         line("}")
                 ]),
                 line("}"),
