@@ -79,7 +79,13 @@ impl registry::Server for RegistryImpl {
             components(&params.get_spot()) // vec3 group-newtype parameter, read via the trait
         };
         let mut results = results.get();
-        fill(&mut results.reborrow().get_echo(), x * 2.0, y * 2.0, z * 2.0); // vec3 result
+        // vec3 result
+        fill(
+            &mut results.reborrow().get_echo(),
+            x * 2.0,
+            y * 2.0,
+            z * 2.0,
+        );
         set_cancel(&mut results.get_kind(), 99); // order_type union-newtype result
         Ok(())
     }
