@@ -1,0 +1,48 @@
+{
+  "$schema": "https://puremourning.github.io/vimspector/schema/vimspector.schema.json",
+  "adapters": {
+    "Rust": {
+      "extends": "CodeLLDB",
+      "variables": [
+        {
+          "RUSTC_SYSROOT": {
+            "shell": "rustc --print sysroot"
+          }
+        }
+      ],
+      "configuration": {
+        "initCommands": [
+          "command script import $RUSTC_SYSROOT/lib/rustlib/etc/lldb_lookup.py",
+          "command source $RUSTC_SYSROOT/lib/rustlib/etc/lldb_commands"
+        ]
+      }
+    }
+  },
+  "configurations": {
+    "test": {
+      "adapter": "Rust",
+      "variables": {
+        "exe": {
+          "shell": [
+            "/bin/bash",
+            "-c",
+            "cargo build --tests ${cargo_args:-p project} --message-format=json -q | jq -r 'select(.executable != null).executable'"
+          ]
+        }
+      },
+      "configuration": {
+        "request": "launch",
+        "program": "${exe}",
+        "args": [
+          "--nocapture",
+          "*${args}"
+        ],
+        "cwd": "${workspaceRoot}",
+        "environment": [],
+        "externalConsole": false,
+        "expressions": "native"
+      }
+    }
+  }
+}
+
