@@ -141,3 +141,12 @@ interface Registry {
   lookup @0 (id :Uuid, age :Age) -> (foundId :Uuid, foundAge :Age);
   place @1 PlaceParams -> PlaceResults;
 }
+
+struct Envelope(Body) {
+  # Group/union newtypes stamped inside a generic struct: the per-instance types are
+  # `Reader<'a, Body>`, so the generated trait impls and `as_any()` must carry the parameter.
+  body @0 :Body;
+  spot @[1-3] :Vec3;
+  prices @[4-7] :OrderPrices;
+  order @[8-11] :OrderType;
+}

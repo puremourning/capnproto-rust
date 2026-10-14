@@ -1410,30 +1410,6 @@ fn generate_setter(
     Ok(Branch(result))
 }
 
-fn used_params_of_group(
-    ctx: &GeneratorContext,
-    group_id: u64,
-    used_params: &mut HashSet<String>,
-) -> capnp::Result<()> {
-    let node = ctx.node_map[&group_id];
-    match node.which()? {
-        schema_capnp::node::Struct(st) => {
-            for field in st.get_fields()? {
-                match field.which()? {
-                    schema_capnp::field::Group(group) => {
-                        used_params_of_group(ctx, group.get_type_id(), used_params)?;
-                    }
-                    schema_capnp::field::Slot(slot) => {
-                        used_params_of_type(ctx, slot.get_type()?, used_params)?;
-                    }
-                }
-            }
-            Ok(())
-        }
-        _ => Err(Error::failed("not a group".to_string())),
-    }
-}
-
 fn used_params_of_type(
     ctx: &GeneratorContext,
     ty: schema_capnp::type_::Reader,
@@ -1575,7 +1551,9 @@ fn generate_union(
 
         let ty1 = match field.which() {
             Ok(field::Group(group)) => {
-                used_params_of_group(ctx, group.get_type_id(), &mut used_params)?;
+                // A group's generated type carries every parameter in scope (`Reader<'a, T>`),
+                // whether or not its fields mention them, so the arm uses them all.
+                used_params.extend(get_params(ctx, group.get_type_id())?);
                 ty_args.push(ty);
                 new_ty_param(&mut ty_params)
             }
@@ -3107,6 +3085,18 @@ fn generate_newtype_impl(
     ]))
 }
 
+// The generics a use site's concrete types carry: a group stamped inside a generic struct is
+// `Reader<'a, T>`, so its impls need `<'a, T>` plus the `T: Owned` bounds. Returns `(", T", where)`,
+// both empty for a non-generic use site.
+fn use_site_generics(ctx: &GeneratorContext, instance_id: u64) -> (String, String) {
+    let texts = ctx.node_map[&instance_id].parameters_texts(ctx);
+    if texts.params.is_empty() {
+        (String::new(), String::new())
+    } else {
+        (format!(",{}", texts.params), texts.where_clause)
+    }
+}
+
 fn generate_group_newtype_impl(
     ctx: &GeneratorContext,
     alias_id: u64,
@@ -3132,6 +3122,7 @@ fn generate_group_newtype_impl(
         instance_fields.insert(field.get_name()?.to_str()?.to_string(), field);
     }
 
+    let (g, wc) = use_site_generics(ctx, instance_id);
     let mut trait_ok = true;
     let mut reader_items = Vec::new();
     let mut builder_items = Vec::new();
@@ -3180,11 +3171,11 @@ fn generate_group_newtype_impl(
             let name = camel_to_snake_case(raw_name);
             let assoc = capitalize_first_letter(raw_name);
             let inst_mod = ctx.get_qualified_module(inst_group.get_type_id());
-            reader_items.push(Line(format!("type {assoc} = {inst_mod}::Reader<'a>;")));
+            reader_items.push(Line(format!("type {assoc} = {inst_mod}::Reader<'a{g}>;")));
             reader_items.push(Line(format!(
                 "fn get_{name}(&self) -> Self::{assoc} {{ (*self).get_{name}() }}"
             )));
-            builder_items.push(Line(format!("type {assoc} = {inst_mod}::Builder<'a>;")));
+            builder_items.push(Line(format!("type {assoc} = {inst_mod}::Builder<'a{g}>;")));
             builder_items.push(Line(format!(
                 "fn get_{name}(self) -> Self::{assoc} {{ self.get_{name}() }}"
             )));
@@ -3228,12 +3219,16 @@ fn generate_group_newtype_impl(
             "static {table}: [u32; {n}] = [{}];",
             offsets.join(", ")
         )));
-        any_items.push(Line(format!("impl<'a> {concrete}::Reader<'a> {{")));
+        any_items.push(Line(format!(
+            "impl<'a{g}> {concrete}::Reader<'a{g}> {wc}{{"
+        )));
         any_items.push(indent(Line(fmt!(ctx,
             "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), &{table}) }}"
         ))));
         any_items.push(line("}"));
-        any_items.push(Line(format!("impl<'a> {concrete}::Builder<'a> {{")));
+        any_items.push(Line(format!(
+            "impl<'a{g}> {concrete}::Builder<'a{g}> {wc}{{"
+        )));
         any_items.push(indent(Line(fmt!(ctx,
             "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), &{table}) }}"
         ))));
@@ -3246,13 +3241,13 @@ fn generate_group_newtype_impl(
     if trait_ok {
         out.push(BlankLine);
         out.push(Line(format!(
-            "impl<'a> {trait_path}::Reader<'a> for {concrete}::Reader<'a> {{"
+            "impl<'a{g}> {trait_path}::Reader<'a> for {concrete}::Reader<'a{g}> {wc}{{"
         )));
         out.push(indent(reader_methods));
         out.push(line("}"));
         out.push(BlankLine);
         out.push(Line(format!(
-            "impl<'a> {trait_path}::Builder<'a> for {concrete}::Builder<'a> {{"
+            "impl<'a{g}> {trait_path}::Builder<'a> for {concrete}::Builder<'a{g}> {wc}{{"
         )));
         out.push(indent(builder_methods));
         out.push(line("}"));
@@ -3402,6 +3397,7 @@ fn generate_union_newtype_impl(
 
     let trait_path = ctx.get_qualified_module(alias_id);
     let concrete = ctx.get_qualified_module(instance_id);
+    let (g, wc) = use_site_generics(ctx, instance_id);
 
     let mut which_arms = Vec::new();
     let mut group_params = Vec::new();
@@ -3426,8 +3422,10 @@ fn generate_union_newtype_impl(
             };
             let inst_mod = ctx.get_qualified_module(inst_group.get_type_id());
             group_params.push(variant.clone());
-            reader_assoc.push(Line(format!("type {variant} = {inst_mod}::Reader<'a>;")));
-            builder_assoc.push(Line(format!("type {variant} = {inst_mod}::Builder<'a>;")));
+            reader_assoc.push(Line(format!("type {variant} = {inst_mod}::Reader<'a{g}>;")));
+            builder_assoc.push(Line(format!(
+                "type {variant} = {inst_mod}::Builder<'a{g}>;"
+            )));
             builder_methods.push(Line(format!(
                 "fn init_{name}(self) -> Self::{variant} {{ self.init_{name}() }}"
             )));
@@ -3486,12 +3484,12 @@ fn generate_union_newtype_impl(
             "static {table}: [u32; {n}] = [{}];",
             offsets.join(", ")
         )),
-        Line(format!("impl<'a> {concrete}::Reader<'a> {{")),
+        Line(format!("impl<'a{g}> {concrete}::Reader<'a{g}> {wc}{{")),
         indent(Line(fmt!(ctx,
             "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), {disc}, &{table}) }}"
         ))),
         line("}"),
-        Line(format!("impl<'a> {concrete}::Builder<'a> {{")),
+        Line(format!("impl<'a{g}> {concrete}::Builder<'a{g}> {wc}{{")),
         indent(Line(fmt!(ctx,
             "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), {disc}, &{table}) }}"
         ))),
@@ -3501,13 +3499,13 @@ fn generate_union_newtype_impl(
     Ok(Branch(vec![
         BlankLine,
         Line(format!(
-            "impl<'a> {trait_path}::Reader<'a> for {concrete}::Reader<'a> {{"
+            "impl<'a{g}> {trait_path}::Reader<'a> for {concrete}::Reader<'a{g}> {wc}{{"
         )),
         indent(reader_items),
         line("}"),
         BlankLine,
         Line(format!(
-            "impl<'a> {trait_path}::Builder<'a> for {concrete}::Builder<'a> {{"
+            "impl<'a{g}> {trait_path}::Builder<'a> for {concrete}::Builder<'a{g}> {wc}{{"
         )),
         indent(builder_items),
         line("}"),

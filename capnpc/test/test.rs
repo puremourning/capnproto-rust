@@ -2826,6 +2826,37 @@ mod tests {
     }
 
     #[test]
+    fn newtype_in_generic_struct() {
+        // Newtypes stamped inside a generic struct still impl their traits and erase via
+        // `as_any()`.
+        use crate::test_newtype_capnp::{envelope, order_type, shapes, vec3};
+
+        fn sum<'a>(v: &impl vec3::Reader<'a>) -> f32 {
+            v.get_x() + v.get_y() + v.get_z()
+        }
+        fn fill<'a>(v: &mut impl vec3::Builder<'a>) {
+            v.set_x(1.0);
+            v.set_y(2.0);
+            v.set_z(3.0);
+        }
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<envelope::Builder<'_, shapes::Owned>>();
+        fill(&mut root.reborrow().get_spot());
+        root.reborrow().get_prices().get_stop().set_value(9);
+        root.reborrow().get_order().init_limit().set_value(5);
+        let reader = root.into_reader();
+        assert_eq!(sum(&reader.get_spot()), 6.0);
+        assert_eq!(reader.get_spot().as_any().get_z(), 3.0);
+        assert_eq!(reader.get_prices().as_any().get_stop().get_value(), 9);
+        match order_type::Reader::which(&reader.get_order()).unwrap() {
+            order_type::Which::Limit(p) => assert_eq!(p.get_value(), 5),
+            _ => panic!("expected the limit arm"),
+        }
+        assert!(reader.get_order().as_any().which().is_ok());
+    }
+
+    #[test]
     fn newtype_any_reader_erasure() {
         // The erased carrier: `as_any()` collapses distinct use sites (distinct offset tables) to
         // one concrete `AnyReader` that reads offsets at runtime and still impls the trait.
