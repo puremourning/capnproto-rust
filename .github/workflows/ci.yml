@@ -76,22 +76,22 @@ jobs:
         uses: ./.github/actions/install-capnp
 
       - name: Test default features
-        run: cargo miri test --package capnp --package capnpc-test
+        run: cargo miri test --package capnp-newtype --package capnpc-test
 
       - name: Test no default features
-        run: cargo miri test --package capnp --package capnpc-test --no-default-features
+        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features
 
       - name: Test default features 32-bit
-        run: cargo miri test --package capnp --package capnpc-test --target i686-unknown-linux-gnu
+        run: cargo miri test --package capnp-newtype --package capnpc-test --target i686-unknown-linux-gnu
 
       - name: Test no default features 32-bit
-        run: cargo miri test --package capnp --package capnpc-test --no-default-features --target i686-unknown-linux-gnu
+        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features --target i686-unknown-linux-gnu
 
       - name: Test sync_reader
-        run: cargo miri test --package capnp --package capnpc-test --features sync_reader
+        run: cargo miri test --package capnp-newtype --package capnpc-test --features sync_reader
 
       - name: Test unaligned
-        run: cargo miri test --package capnp --package capnpc-test --features unaligned
+        run: cargo miri test --package capnp-newtype --package capnpc-test --features unaligned
 
   minrust:
     name: minrust
@@ -121,7 +121,7 @@ jobs:
           cd ../
 
     - name: Run tests
-      run: cargo test -p capnp -p capnpc -p capnp-futures -p capnp-rpc
+      run: cargo test -p capnp-newtype -p capnpc-newtype -p capnp-futures -p capnp-rpc
 
   fmt:
     name: formatting
