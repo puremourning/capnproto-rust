@@ -1305,16 +1305,20 @@ fn loaded_evolution_tables_match_compiled() {
 
 #[test]
 fn name_lookup_ignores_rust_name_annotations() {
-    // The loader sorts its name table by schema name, which is what `find_field_by_name`
-    // searches. (Generated code sorts by the `$Rust.name`, so the compiled lookup of `bar` here
-    // misses; that is a codegen issue, not checked here.)
+    // Both the loader and generated code sort their name tables by schema name, which is what
+    // `find_field_by_name` searches, not by the `$Rust.name`.
     let id = id_of::<crate::test_capnp::renamed_struct::Owned>();
     let schema = loader().get_struct(id).unwrap();
+    let compiled_schema = compiled::<crate::test_capnp::renamed_struct::Owned>();
     for field in schema.get_fields().unwrap() {
         let name = field.get_proto().get_name().unwrap().to_str().unwrap();
         assert_eq!(
             schema.find_field_by_name(name).unwrap(),
             Some(field),
+            "{name}"
+        );
+        assert!(
+            compiled_schema.find_field_by_name(name).unwrap().is_some(),
             "{name}"
         );
     }

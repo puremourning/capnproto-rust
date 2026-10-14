@@ -19,8 +19,13 @@ regenerate it with the matching capnpc-newtype.
   time (for example a `CodeGeneratorRequest` from `capnp compile -o-`), giving `StructSchema`,
   `EnumSchema` and `Type` values that drive the dynamic API like compiled ones. See
   `example/dynamic-dump`.
-- Add `SchemaLoader::load_compiled::<T>()` and dynamic_struct `try_downcast`: downcast values
-  read through loaded schemas to compiled types.
+- Add `SchemaLoader::load_compiled::<T>()` (like C++ `loadCompiledTypeAndDependencies<T>()`),
+  after which values read through loaded schemas downcast to the compiled type `T`. Downcasts now
+  check `Type::usable_as` rather than `==`: a loaded type is usable as a compiled one when the
+  node is identical and every brand binding is usable, so e.g. `Message(Request(Text))` downcasts
+  to `message::Owned<request::Owned<text::Owned>>` but not to a `Reply` instantiation. Add
+  non-panicking `dynamic_struct::{Reader,Builder}::try_downcast` and
+  `dynamic_value::{Reader,Builder}::try_downcast_struct`.
 
 ## v0.27.4
 - In dynamic API, all downcasting newtypes to their AnyReader/AnyBuilder
