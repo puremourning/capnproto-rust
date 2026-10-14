@@ -292,6 +292,15 @@ where
         self.get_root_internal()?.get_as()
     }
 
+    /// Gets the root struct dynamically, as a struct of type `schema`. See
+    /// [`any_pointer::Reader::get_as_dynamic`].
+    pub fn get_root_as_dynamic(
+        &self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Reader<'_>> {
+        self.get_root_internal()?.get_as_dynamic(schema)
+    }
+
     pub fn into_segments(self) -> S {
         self.arena.into_segments()
     }
@@ -529,6 +538,24 @@ where
     pub fn get_root<'a, T: FromPointerBuilder<'a>>(&'a mut self) -> Result<T> {
         let root = self.get_root_internal();
         root.get_as()
+    }
+
+    /// Initializes the root as a new struct of type `schema` and returns a dynamic builder for
+    /// it. See [`any_pointer::Builder::init_dynamic`].
+    pub fn init_root_dynamic(
+        &mut self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Builder<'_>> {
+        self.get_root_internal().init_dynamic(schema)
+    }
+
+    /// Gets the root as a dynamic builder of type `schema`, initializing an empty root if
+    /// there is none yet. See [`any_pointer::Builder::get_as_dynamic`].
+    pub fn get_root_as_dynamic(
+        &mut self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Builder<'_>> {
+        self.get_root_internal().get_as_dynamic(schema)
     }
 
     pub fn get_root_as_reader<'a, T: FromPointerReader<'a>>(&'a self) -> Result<T> {

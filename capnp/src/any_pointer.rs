@@ -72,6 +72,22 @@ impl<'a> Reader<'a> {
         FromPointerReader::get_from_pointer(&self.reader, None)
     }
 
+    /// Reads the pointed-to struct dynamically, as a struct of type `schema`.
+    ///
+    /// This is the dynamic counterpart of [`get_as`](Self::get_as): `schema` can come from
+    /// compiled code (`<foo::Owned as Introspect>::introspect()`) or from anywhere else a
+    /// [`StructSchema`](crate::schema::StructSchema) is available. A null pointer reads as the
+    /// default (empty) struct. Fails if the pointer does not point to a struct.
+    pub fn get_as_dynamic(
+        &self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Reader<'a>> {
+        Ok(crate::dynamic_struct::Reader::new(
+            self.reader.get_struct(None)?,
+            schema,
+        ))
+    }
+
     #[cfg(feature = "alloc")]
     pub fn get_as_capability<T: FromClientHook>(&self) -> Result<T> {
         Ok(FromClientHook::new(self.reader.get_capability()?))
@@ -164,6 +180,36 @@ impl<'a> Builder<'a> {
 
     pub fn initn_as<T: FromPointerBuilder<'a>>(self, size: u32) -> T {
         FromPointerBuilder::init_pointer(self.builder, size)
+    }
+
+    /// Gets the pointed-to struct as a dynamic builder of type `schema`, the dynamic counterpart
+    /// of [`get_as`](Self::get_as). A null pointer is initialized to an empty struct of
+    /// `schema`'s size. Fails if the pointer does not point to a struct.
+    pub fn get_as_dynamic(
+        self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Builder<'a>> {
+        let size = crate::dynamic_struct::struct_size_from_schema(schema)?;
+        Ok(crate::dynamic_struct::Builder::new(
+            self.builder.get_struct(size, None)?,
+            schema,
+        ))
+    }
+
+    /// Initializes the pointer as a new struct of type `schema`, the dynamic counterpart of
+    /// [`init_as`](Self::init_as). Any previous target is cleared.
+    ///
+    /// The struct is sized from `schema`'s node. This only fails if that node is malformed
+    /// (not a struct node), which cannot happen for a schema from generated code.
+    pub fn init_dynamic(
+        self,
+        schema: crate::schema::StructSchema,
+    ) -> Result<crate::dynamic_struct::Builder<'a>> {
+        let size = crate::dynamic_struct::struct_size_from_schema(schema)?;
+        Ok(crate::dynamic_struct::Builder::new(
+            self.builder.init_struct(size),
+            schema,
+        ))
     }
 
     pub fn set_as<T: crate::traits::Owned>(&mut self, value: impl SetterInput<T>) -> Result<()> {
