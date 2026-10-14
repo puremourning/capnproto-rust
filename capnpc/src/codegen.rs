@@ -703,7 +703,7 @@ fn is_scalar_data_field(field: &schema_capnp::field::Reader) -> ::capnp::Result<
 // without this an unmapped `@[...]` set would be UB rather than a clean error.
 fn unmapped_panic(idx: usize, field_name: &str) -> String {
     format!(
-        "if self.offsets[{idx}] == 0xffff_ffffu32 {{ panic!(\"field '{field_name}' is not mapped at this use site\"); }}"
+        "if self.table.offset({idx}) == 0xffff_ffffu32 {{ panic!(\"field '{field_name}' is not mapped at this use site\"); }}"
     )
 }
 
@@ -740,7 +740,7 @@ pub fn getter_text(
 
 // Like `getter_text`, but `offset_override`, when set, is used verbatim as the slot's offset
 // expression instead of the field's baked literal. The erased `AnyReader`/`AnyBuilder` pass
-// `self.offsets[i] as usize` so one type can serve every use site off a runtime offset table.
+// `self.table.offset(i) as usize` so one type can serve every use site off a runtime table.
 fn getter_text_at(
     ctx: &GeneratorContext,
     field: &schema_capnp::field::Reader,
@@ -1111,8 +1111,8 @@ fn setter_methods(
 }
 
 // Like `setter_methods`, but with the discriminant offset and (via `offset_override`) the slot
-// offset given as expressions, so the erased `AnyBuilder` can write at `self.offsets[i]` /
-// `self.disc_offset` instead of baked literals.
+// offset given as expressions, so the erased `AnyBuilder` can write at `self.table.offset(i)` /
+// `self.table.discriminant_offset` instead of baked literals.
 fn setter_methods_at(
     ctx: &GeneratorContext,
     disc_offset: &str,
@@ -2376,79 +2376,80 @@ fn generate_newtype_trait(
     ]))
 }
 
-// Recursive leaf count of a newtype template: a slot is one leaf; a nested-newtype member expands
-// to its own leaves. The erased carrier uses this to slice its offset table.
-fn count_newtype_leaves(ctx: &GeneratorContext, template_id: u64) -> ::capnp::Result<usize> {
-    use capnp::schema_capnp::*;
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(0);
-    };
-    let mut n = 0;
-    for field in tmpl.get_fields()? {
-        match field.which()? {
-            field::Slot(_) => n += 1,
-            field::Group(_) => {
-                if let Some(nested) = newtype_template_id(ctx, field.get_type_id())? {
-                    n += count_newtype_leaves(ctx, nested)?;
-                }
-            }
-        }
-    }
-    Ok(n)
+// Whether a use site of `alias_id` gets a per-use-site table static and erased carriers: true for
+// a group or union newtype (or an alias of one).
+fn has_use_site_table(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<bool> {
+    Ok(group_newtype_template_id(ctx, alias_id)?.is_some()
+        || union_newtype_template_id(ctx, alias_id)?.is_some())
 }
 
-// Collects a use site's leaf offsets in template (tree) order, recursing through nested-newtype
-// members, matching the instance's fields to the template by name. A leaf absent from the instance
-// (an incomplete `@[...]`) gets the sentinel `0xffff_ffff`.
-fn collect_leaf_offsets(
+// The `static <NAME>_TABLE: UseSiteTable` for the use site `instance_id` of the newtype whose
+// template is `template_id`, emitted in the module of the instance's parent. Per the design, it has
+// one entry per field of the template, indexed by the field's position in the template's `fields`
+// list (stable under evolution). A slot maps to its offset, matched to the instance by name, or to
+// the sentinel when unmapped (an incomplete `@[...]`); a nested-newtype member refers to the nested
+// instance's own table, which its parent module (the instance's) emits.
+fn use_site_table_static(
     ctx: &GeneratorContext,
     template_id: u64,
     instance_id: u64,
-    out: &mut Vec<String>,
-) -> ::capnp::Result<()> {
+) -> ::capnp::Result<FormattedText> {
     use capnp::schema_capnp::*;
     let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(());
+        return Ok(Branch(vec![]));
     };
     let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
-        return Ok(());
+        return Ok(Branch(vec![]));
     };
     let mut inst_fields = ::std::collections::HashMap::new();
     for f in instance.get_fields()? {
         inst_fields.insert(f.get_name()?.to_str()?.to_string(), f);
     }
+    let unmapped = fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset(0xffff_ffff)");
+    let mut entries = Vec::new();
     for field in tmpl.get_fields()? {
         let raw = field.get_name()?.to_str()?;
-        match field.which()? {
-            field::Slot(_) => match inst_fields.get(raw).map(|f| f.which()) {
-                Some(Ok(field::Slot(s))) => out.push(s.get_offset().to_string()),
-                _ => out.push("0xffff_ffff".to_string()),
-            },
-            field::Group(_) => {
-                let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
-                    continue;
+        let inst = inst_fields.get(raw).map(|f| f.which());
+        let entry = match (field.which()?, inst) {
+            (field::Slot(_), Some(Ok(field::Slot(s)))) => fmt!(
+                ctx,
+                "{capnp}::traits::UseSiteEntry::Offset({})",
+                s.get_offset()
+            ),
+            (field::Slot(_), _) => unmapped.clone(),
+            (field::Group(_), inst) => {
+                let child = match inst {
+                    Some(Ok(field::Group(ig))) if has_use_site_table(ctx, field.get_type_id())? => {
+                        use_site_table_path(ctx, instance_id, ig.get_type_id())?
+                    }
+                    _ => fmt!(ctx, "{capnp}::traits::EMPTY_USE_SITE_TABLE"),
                 };
-                match inst_fields.get(raw).map(|f| f.which()) {
-                    Some(Ok(field::Group(ig))) => {
-                        collect_leaf_offsets(ctx, nested_tmpl, ig.get_type_id(), out)?
-                    }
-                    _ => {
-                        for _ in 0..count_newtype_leaves(ctx, nested_tmpl)? {
-                            out.push("0xffff_ffff".to_string());
-                        }
-                    }
-                }
+                fmt!(ctx, "{capnp}::traits::UseSiteEntry::Nested(&{child})")
             }
-        }
+        };
+        entries.push(entry);
     }
-    Ok(())
+    let name = use_site_table_name(ctx, instance_id)?;
+    Ok(Line(fmt!(
+        ctx,
+        "pub(crate) static {name}: {capnp}::traits::UseSiteTable<'static> = {capnp}::traits::UseSiteTable {{ entries: &[{}], discriminant_offset: {} }};",
+        entries.join(", "),
+        instance.get_discriminant_offset()
+    )))
+}
+
+// A slot member's offset expression in an erased carrier, read from its runtime table by the
+// member's template field position. An index past the end of the table (a table from an older
+// version of the newtype) reads as the unmapped sentinel.
+fn table_offset(idx: usize) -> String {
+    format!("self.table.offset({idx})")
 }
 
 // The erased carrier for a (non-union) group newtype: a concrete `AnyReader<'a>` holding a
-// `StructReader` plus a runtime offset table, so one type serves every use site (unlike `&dyn`).
-// A slot accessor indexes `self.offsets[i]` via `getter_text_at`; a nested-newtype member returns
-// the member's own `AnyReader` over a sub-slice of the table. It impls the newtype's `Reader`
-// trait, so `impl Reader` bounds accept both the concrete per-site type and the erased form.
+// `StructReader` plus a runtime `UseSiteTable`, so one type serves every use site (unlike `&dyn`).
+// A slot accessor reads `self.table.offset(i)` via `getter_text_at`; a nested-newtype member returns
+// the member's own `AnyReader` over the nested table. It impls the newtype's `Reader` trait, so
+// `impl Reader` bounds accept both the concrete per-site type and the erased form.
 fn any_reader_items(
     ctx: &GeneratorContext,
     template_id: u64,
@@ -2464,27 +2465,24 @@ fn any_reader_items(
     let mut inherent = Vec::new();
     let mut trait_methods = Vec::new();
     let mut defaults = Vec::new();
-    let mut cursor = 0usize;
-    for field in tmpl.get_fields()? {
+    for (idx, field) in tmpl.get_fields()?.into_iter().enumerate() {
         let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        let at = table_offset(idx);
         if let field::Group(_) = field.which()? {
             let assoc = capitalize_first_letter(field.get_name()?.to_str()?);
             let nested_mod = ctx.get_qualified_module(field.get_type_id());
-            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+            if newtype_template_id(ctx, field.get_type_id())?.is_none() {
                 return Ok(vec![]);
-            };
-            let count = count_newtype_leaves(ctx, nested_tmpl)?;
-            let (start, end) = (cursor, cursor + count);
+            }
             inherent.push(Line(format!(
-                "pub fn get_{name}(&self) -> {nested_mod}::AnyReader<'a> {{ {nested_mod}::AnyReader::new(self.reader, &self.offsets[{start}..{end}]) }}"
+                "pub fn get_{name}(&self) -> {nested_mod}::AnyReader<'a> {{ {nested_mod}::AnyReader::new(self.reader, self.table.nested({idx})) }}"
             )));
             trait_methods.push(Line(format!("type {assoc} = {nested_mod}::AnyReader<'a>;")));
             trait_methods.push(Line(format!(
                 "fn get_{name}(&self) -> Self::{assoc} {{ self.get_{name}() }}"
             )));
-            cursor += count;
         } else {
-            let off = format!("self.offsets[{cursor}] as usize");
+            let off = format!("{at} as usize");
             let (ret, mut body, def) = getter_text_at(ctx, &field, true, true, Some(&off))?;
             if let Some(d) = def {
                 defaults.push(d);
@@ -2496,7 +2494,7 @@ fn any_reader_items(
                     let expr = expr.clone();
                     let dflt = prim_default_value(&s.get_default_value()?)?;
                     body = Line(format!(
-                        "if self.offsets[{cursor}] == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
+                        "if {at} == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
                     ));
                 }
             }
@@ -2509,28 +2507,28 @@ fn any_reader_items(
             if let field::Slot(s) = field.which()? {
                 if s.get_type()?.is_pointer()? {
                     inherent.push(Line(format!(
-                        "pub fn has_{name}(&self) -> bool {{ !self.reader.get_pointer_field(self.offsets[{cursor}] as usize).is_null() }}"
+                        "pub fn has_{name}(&self) -> bool {{ !self.reader.get_pointer_field({at} as usize).is_null() }}"
                     )));
                     trait_methods.push(Line(format!(
                         "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
                     )));
                 }
             }
-            cursor += 1;
         }
     }
 
     let sr = fmt!(ctx, "{capnp}::private::layout::StructReader<'a>");
+    let table = fmt!(ctx, "{capnp}::traits::UseSiteTable<'a>");
     let mut items = vec![
         BlankLine,
         line("#[derive(Clone, Copy)]"),
         Line(format!(
-            "pub struct AnyReader<'a> {{ reader: {sr}, offsets: &'a [u32] }}"
+            "pub struct AnyReader<'a> {{ reader: {sr}, table: &'a {table} }}"
         )),
         line("impl<'a> AnyReader<'a> {"),
         indent(vec![
             Line(format!(
-                "pub fn new(reader: {sr}, offsets: &'a [u32]) -> Self {{ AnyReader {{ reader, offsets }} }}"
+                "pub fn new(reader: {sr}, table: &'a {table}) -> Self {{ AnyReader {{ reader, table }} }}"
             )),
             Branch(inherent),
         ]),
@@ -2547,10 +2545,10 @@ fn any_reader_items(
     Ok(items)
 }
 
-// The erased carrier for a union newtype: like `AnyReader` but with a runtime discriminant offset.
-// `which()` reads the discriminant and builds the shared `Which`, with a group arm yielding the
-// member's own `AnyReader` over an offset sub-slice -- so the erased union unifies across use sites
-// (which `&dyn` cannot, given the arm associated types).
+// The erased carrier for a union newtype: like `AnyReader`, with the discriminant offset taken from
+// the table. `which()` reads the discriminant and builds the shared `Which`, with a group arm
+// yielding the member's own `AnyReader` over its nested table -- so the erased union unifies across
+// use sites (which `&dyn` cannot, given the arm associated types).
 fn union_any_reader_items(
     ctx: &GeneratorContext,
     template_id: u64,
@@ -2570,29 +2568,26 @@ fn union_any_reader_items(
     let mut has_inherent = Vec::new();
     let mut has_trait = Vec::new();
     let mut needs_lifetime = false;
-    let mut cursor = 0usize;
-    for field in tmpl.get_fields()? {
+    for (idx, field) in tmpl.get_fields()?.into_iter().enumerate() {
         let variant = capitalize_first_letter(field.get_name()?.to_str()?);
         let name = camel_to_snake_case(field.get_name()?.to_str()?);
         let dvalue = field.get_discriminant_value();
+        let at = table_offset(idx);
         if let field::Group(_) = field.which()? {
             let nested_mod = ctx.get_qualified_module(field.get_type_id());
-            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+            if newtype_template_id(ctx, field.get_type_id())?.is_none() {
                 return Ok(vec![]);
-            };
-            let count = count_newtype_leaves(ctx, nested_tmpl)?;
-            let (start, end) = (cursor, cursor + count);
+            }
             arms.push(Line(format!(
-                "{dvalue} => ::core::result::Result::Ok(Which::{variant}({nested_mod}::AnyReader::new(self.reader, &self.offsets[{start}..{end}]))),"
+                "{dvalue} => ::core::result::Result::Ok(Which::{variant}({nested_mod}::AnyReader::new(self.reader, self.table.nested({idx})))),"
             )));
             assoc.push(Line(format!(
                 "type {variant} = {nested_mod}::AnyReader<'a>;"
             )));
             group_variants.push(variant.clone());
             which_type_params.push(format!("{nested_mod}::AnyReader<'a>"));
-            cursor += count;
         } else {
-            let off = format!("self.offsets[{cursor}] as usize");
+            let off = format!("{at} as usize");
             let (_, getter_code, _) = getter_text_at(ctx, &field, true, false, Some(&off))?;
             let FormattedText::Line(payload) = getter_code else {
                 return Ok(vec![]); // option-wrapped arm -- unsupported in the erased union for now
@@ -2604,14 +2599,13 @@ fn union_any_reader_items(
                 if s.get_type()?.is_pointer()? {
                     needs_lifetime = true;
                     has_inherent.push(Line(format!(
-                        "pub fn has_{name}(&self) -> bool {{ if self.reader.get_data_field::<u16>(self.disc_offset as usize) != {dvalue} {{ return false; }} !self.reader.get_pointer_field(self.offsets[{cursor}] as usize).is_null() }}"
+                        "pub fn has_{name}(&self) -> bool {{ if self.discriminant() != {dvalue} {{ return false; }} !self.reader.get_pointer_field({at} as usize).is_null() }}"
                     )));
                     has_trait.push(Line(format!(
                         "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
                     )));
                 }
             }
-            cursor += 1;
         }
     }
     arms.push(line(
@@ -2628,12 +2622,17 @@ fn union_any_reader_items(
     );
 
     let sr = fmt!(ctx, "{capnp}::private::layout::StructReader<'a>");
+    let table = fmt!(ctx, "{capnp}::traits::UseSiteTable<'a>");
+    // An unmapped union (an empty table) reads as discriminant 0, whose arm then reads its default.
+    let discriminant_method = Line(
+        "fn discriminant(&self) -> u16 { let d = self.table.discriminant_offset; if d == 0xffff_ffffu32 { 0 } else { self.reader.get_data_field::<u16>(d as usize) } }".to_string(),
+    );
     let which_method = Branch(vec![
         Line(format!(
             "pub fn which(&self) -> ::core::result::Result<Which{inherent_ret}, ::capnp::NotInSchema> {{"
         )),
         indent(vec![
-            line("match self.reader.get_data_field::<u16>(self.disc_offset as usize) {"),
+            line("match self.discriminant() {"),
             indent(arms),
             line("}"),
         ]),
@@ -2650,13 +2649,14 @@ fn union_any_reader_items(
         BlankLine,
         line("#[derive(Clone, Copy)]"),
         Line(format!(
-            "pub struct AnyReader<'a> {{ reader: {sr}, disc_offset: u32, offsets: &'a [u32] }}"
+            "pub struct AnyReader<'a> {{ reader: {sr}, table: &'a {table} }}"
         )),
         line("impl<'a> AnyReader<'a> {"),
         indent(vec![
             Line(format!(
-                "pub fn new(reader: {sr}, disc_offset: u32, offsets: &'a [u32]) -> Self {{ AnyReader {{ reader, disc_offset, offsets }} }}"
+                "pub fn new(reader: {sr}, table: &'a {table}) -> Self {{ AnyReader {{ reader, table }} }}"
             )),
+            discriminant_method,
             which_method,
             Branch(has_inherent),
         ]),
@@ -2668,8 +2668,8 @@ fn union_any_reader_items(
 }
 
 // The erased mutable carrier for a (non-union) group newtype: `AnyBuilder<'a>` over a
-// `StructBuilder` and a runtime offset table. Setters/init write at `self.offsets[i]`; a
-// nested-newtype member yields the member's own `AnyBuilder` over a sub-slice.
+// `StructBuilder` and a runtime `UseSiteTable`. Setters/init write at `self.table.offset(i)`; a
+// nested-newtype member yields the member's own `AnyBuilder` over its nested table.
 fn any_builder_items(
     ctx: &GeneratorContext,
     template_id: u64,
@@ -2684,20 +2684,18 @@ fn any_builder_items(
 
     let mut inherent = Vec::new();
     let mut trait_methods = Vec::new();
-    let mut cursor = 0usize;
-    for field in tmpl.get_fields()? {
+    for (idx, field) in tmpl.get_fields()?.into_iter().enumerate() {
         let name = camel_to_snake_case(field.get_name()?.to_str()?);
+        let at = table_offset(idx);
         if let field::Group(_) = field.which()? {
             let assoc = capitalize_first_letter(field.get_name()?.to_str()?);
             let nested_mod = ctx.get_qualified_module(field.get_type_id());
-            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+            if newtype_template_id(ctx, field.get_type_id())?.is_none() {
                 return Ok(vec![]);
-            };
-            let count = count_newtype_leaves(ctx, nested_tmpl)?;
-            let (start, end) = (cursor, cursor + count);
+            }
             for verb in ["get", "init"] {
                 inherent.push(Line(format!(
-                    "pub fn {verb}_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ {nested_mod}::AnyBuilder::new(self.builder, &self.offsets[{start}..{end}]) }}"
+                    "pub fn {verb}_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ {nested_mod}::AnyBuilder::new(self.builder, self.table.nested({idx})) }}"
                 )));
             }
             trait_methods.push(Line(format!(
@@ -2709,10 +2707,9 @@ fn any_builder_items(
             trait_methods.push(Line(format!(
                 "fn init_{name}(self) -> Self::{assoc} {{ self.init_{name}() }}"
             )));
-            cursor += count;
         } else {
-            let off = format!("self.offsets[{cursor}] as usize");
-            let guard = unmapped_panic(cursor, &name);
+            let off = format!("{at} as usize");
+            let guard = unmapped_panic(idx, &name);
             // Builder getter: a scalar reads its default at the sentinel; a pointer getter panics
             // (the builder read is unchecked and there's no empty builder to return).
             let (ret, body, _) = getter_text_at(ctx, &field, false, true, Some(&off))?;
@@ -2722,7 +2719,7 @@ fn any_builder_items(
                         let expr = expr.clone();
                         let dflt = prim_default_value(&s.get_default_value()?)?;
                         Line(format!(
-                            "if self.offsets[{cursor}] == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
+                            "if {at} == 0xffff_ffffu32 {{ {dflt} }} else {{ {expr} }}"
                         ))
                     } else {
                         body
@@ -2751,27 +2748,27 @@ fn any_builder_items(
             if let field::Slot(s) = field.which()? {
                 if s.get_type()?.is_pointer()? {
                     inherent.push(Line(format!(
-                        "pub fn has_{name}(&self) -> bool {{ if self.offsets[{cursor}] == 0xffff_ffffu32 {{ return false; }} !self.builder.is_pointer_field_null(self.offsets[{cursor}] as usize) }}"
+                        "pub fn has_{name}(&self) -> bool {{ if {at} == 0xffff_ffffu32 {{ return false; }} !self.builder.is_pointer_field_null({at} as usize) }}"
                     )));
                     trait_methods.push(Line(format!(
                         "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
                     )));
                 }
             }
-            cursor += 1;
         }
     }
 
     let sb = fmt!(ctx, "{capnp}::private::layout::StructBuilder<'a>");
+    let table = fmt!(ctx, "{capnp}::traits::UseSiteTable<'a>");
     Ok(vec![
         BlankLine,
         Line(format!(
-            "pub struct AnyBuilder<'a> {{ builder: {sb}, offsets: &'a [u32] }}"
+            "pub struct AnyBuilder<'a> {{ builder: {sb}, table: &'a {table} }}"
         )),
         line("impl<'a> AnyBuilder<'a> {"),
         indent(vec![
             Line(format!(
-                "pub fn new(builder: {sb}, offsets: &'a [u32]) -> Self {{ AnyBuilder {{ builder, offsets }} }}"
+                "pub fn new(builder: {sb}, table: &'a {table}) -> Self {{ AnyBuilder {{ builder, table }} }}"
             )),
             Branch(inherent),
         ]),
@@ -2782,9 +2779,10 @@ fn any_builder_items(
     ])
 }
 
-// The erased mutable carrier for a union newtype: `AnyBuilder` with a runtime discriminant offset.
-// Each arm setter writes the discriminant at `self.disc_offset` (via `setter_methods_at`); a group
-// arm's `init_` writes it then hands out the member's own `AnyBuilder` over an offset sub-slice.
+// The erased mutable carrier for a union newtype: `AnyBuilder` with the discriminant offset taken
+// from the table. Each arm setter writes the discriminant (via `setter_methods_at`) after checking
+// the arm is mapped; a group arm's `init_` writes it then hands out the member's own `AnyBuilder`
+// over its nested table.
 fn union_any_builder_items(
     ctx: &GeneratorContext,
     template_id: u64,
@@ -2800,20 +2798,18 @@ fn union_any_builder_items(
     let mut inherent = Vec::new();
     let mut assoc = Vec::new();
     let mut trait_methods = Vec::new();
-    let mut cursor = 0usize;
-    for field in tmpl.get_fields()? {
+    for (idx, field) in tmpl.get_fields()?.into_iter().enumerate() {
         let variant = capitalize_first_letter(field.get_name()?.to_str()?);
         let name = camel_to_snake_case(field.get_name()?.to_str()?);
         let dvalue = field.get_discriminant_value();
+        let at = table_offset(idx);
         if let field::Group(_) = field.which()? {
             let nested_mod = ctx.get_qualified_module(field.get_type_id());
-            let Some(nested_tmpl) = newtype_template_id(ctx, field.get_type_id())? else {
+            if newtype_template_id(ctx, field.get_type_id())?.is_none() {
                 return Ok(vec![]);
-            };
-            let count = count_newtype_leaves(ctx, nested_tmpl)?;
-            let (start, end) = (cursor, cursor + count);
+            }
             inherent.push(Line(format!(
-                "pub fn init_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ let b = self.builder; b.set_data_field::<u16>(self.disc_offset as usize, {dvalue}); {nested_mod}::AnyBuilder::new(b, &self.offsets[{start}..{end}]) }}"
+                "pub fn init_{name}(self) -> {nested_mod}::AnyBuilder<'a> {{ let ::core::option::Option::Some(nested) = self.table.get_nested({idx}) else {{ panic!(\"field '{name}' is not mapped at this use site\") }}; let b = self.builder; b.set_data_field::<u16>(self.table.discriminant_offset as usize, {dvalue}); {nested_mod}::AnyBuilder::new(b, nested) }}"
             )));
             assoc.push(Line(format!(
                 "type {variant} = {nested_mod}::AnyBuilder<'a>;"
@@ -2821,12 +2817,16 @@ fn union_any_builder_items(
             trait_methods.push(Line(format!(
                 "fn init_{name}(self) -> Self::{variant} {{ self.init_{name}() }}"
             )));
-            cursor += count;
         } else {
-            let off = format!("self.offsets[{cursor}] as usize");
-            let guard = unmapped_panic(cursor, &name);
-            for m in setter_methods_at(ctx, "self.disc_offset as usize", &name, &field, Some(&off))?
-            {
+            let off = format!("{at} as usize");
+            let guard = unmapped_panic(idx, &name);
+            for m in setter_methods_at(
+                ctx,
+                "self.table.discriminant_offset as usize",
+                &name,
+                &field,
+                Some(&off),
+            )? {
                 let sig_inherent = m.signature(true);
                 let sig_trait = m.signature(false);
                 let call = format!("self.{}({})", m.name, m.delegate_args);
@@ -2837,30 +2837,32 @@ fn union_any_builder_items(
             }
             if let field::Slot(s) = field.which()? {
                 if s.get_type()?.is_pointer()? {
+                    // A mapped arm implies a mapped discriminant, so check the arm first: the
+                    // builder's reads are unchecked.
                     inherent.push(Line(format!(
-                        "pub fn has_{name}(&self) -> bool {{ if self.builder.get_data_field::<u16>(self.disc_offset as usize) != {dvalue} {{ return false; }} !self.builder.is_pointer_field_null(self.offsets[{cursor}] as usize) }}"
+                        "pub fn has_{name}(&self) -> bool {{ if {at} == 0xffff_ffffu32 {{ return false; }} if self.builder.get_data_field::<u16>(self.table.discriminant_offset as usize) != {dvalue} {{ return false; }} !self.builder.is_pointer_field_null({at} as usize) }}"
                     )));
                     trait_methods.push(Line(format!(
                         "fn has_{name}(&self) -> bool {{ self.has_{name}() }}"
                     )));
                 }
             }
-            cursor += 1;
         }
     }
 
     let sb = fmt!(ctx, "{capnp}::private::layout::StructBuilder<'a>");
+    let table = fmt!(ctx, "{capnp}::traits::UseSiteTable<'a>");
     let mut trait_items = assoc;
     trait_items.extend(trait_methods);
     Ok(vec![
         BlankLine,
         Line(format!(
-            "pub struct AnyBuilder<'a> {{ builder: {sb}, disc_offset: u32, offsets: &'a [u32] }}"
+            "pub struct AnyBuilder<'a> {{ builder: {sb}, table: &'a {table} }}"
         )),
         line("impl<'a> AnyBuilder<'a> {"),
         indent(vec![
             Line(format!(
-                "pub fn new(builder: {sb}, disc_offset: u32, offsets: &'a [u32]) -> Self {{ AnyBuilder {{ builder, disc_offset, offsets }} }}"
+                "pub fn new(builder: {sb}, table: &'a {table}) -> Self {{ AnyBuilder {{ builder, table }} }}"
             )),
             Branch(inherent),
         ]),
@@ -2873,35 +2875,24 @@ fn union_any_builder_items(
 
 // `capnp::traits::AnyReader` / `AnyBuilder` for a newtype's erased carriers, plus the
 // `DowncastReader` / `DowncastBuilder` impls through which the dynamic API reaches them:
-// `group.downcast::<vec3::AnyReader>()`. The downcast reads the use site's offset table from the
-// group's schema (see `use_site_any_layout`) and checks it against `TYPE_ID` and `LEAF_COUNT`.
+// `group.downcast::<vec3::AnyReader>()`. The downcast reads the use site's table from the group's
+// schema (see `use_site_any_layout`) and checks the group was declared with `TYPE_ID`.
 fn any_downcast_impls(
     ctx: &GeneratorContext,
-    template_id: u64,
-    is_union: bool,
     has_reader: bool,
     has_builder: bool,
 ) -> ::capnp::Result<Vec<FormattedText>> {
-    let leaves = count_newtype_leaves(ctx, template_id)?;
-    // A union carrier's `new` takes the discriminant offset; a group carrier's doesn't.
-    let disc_arg = if is_union {
-        "discriminant_offset, "
-    } else {
-        ""
-    };
     let mut items = Vec::new();
     let mut emit = |kind: &str, raw: &str, value: &str, downcast: &str| {
         let ident = kind.to_ascii_lowercase();
-        let unused = if is_union { "" } else { "_" };
         items.push(Line(fmt!(
             ctx,
             "impl<'a> {capnp}::traits::{kind}<'a> for {kind}<'a> {{"
         )));
         items.push(indent(vec![
             line("const TYPE_ID: u64 = TYPE_ID;"),
-            Line(format!("const LEAF_COUNT: usize = {leaves};")),
             Line(fmt!(ctx,
-                "fn from_use_site({ident}: {capnp}::private::layout::{raw}<'a>, offsets: &'a [u32], {unused}discriminant_offset: u32) -> Self {{ Self::new({ident}, {disc_arg}offsets) }}"
+                "fn from_use_site({ident}: {capnp}::private::layout::{raw}<'a>, table: &'a {capnp}::traits::UseSiteTable<'a>) -> Self {{ Self::new({ident}, table) }}"
             )),
         ]));
         items.push(line("}"));
@@ -2930,9 +2921,9 @@ fn any_downcast_impls(
 }
 
 // For a group that is a use site of a group or union newtype, the `.with_any_layout(..)` call that
-// records the newtype ids and offset table on its `RAW_SCHEMA`, so the dynamic API can downcast it.
-// The offset table is the one the parent's module already emits for `as_any()` (named by
-// `use_site_offsets_table`); a private item of an ancestor module is visible here. None for any
+// records the newtype ids and use-site table on its `RAW_SCHEMA`, so the dynamic API can downcast
+// it. The table is the one the parent's module already emits for `as_any()` (named by
+// `use_site_table_path`). None for any
 // other node.
 fn use_site_any_layout(
     ctx: &GeneratorContext,
@@ -2960,28 +2951,25 @@ fn use_site_any_layout(
             continue;
         }
         let alias_id = field.get_type_id();
-        let is_newtype = group_newtype_template_id(ctx, alias_id)?.is_some()
-            || union_newtype_template_id(ctx, alias_id)?.is_some();
-        if !is_newtype {
+        if !has_use_site_table(ctx, alias_id)? {
             return Ok(None);
         }
         let ids: Vec<String> = field_newtype_ids(ctx, field)?
             .into_iter()
             .map(format_u64)
             .collect();
-        let table = use_site_offsets_table(ctx, node.get_scope_id(), id)?;
+        let table = use_site_table_path(ctx, node.get_scope_id(), id)?;
         return Ok(Some(format!(
-            ".with_any_layout(&[{}], &{table}, {})",
-            ids.join(", "),
-            instance.get_discriminant_offset()
+            ".with_any_layout(&[{}], &{table})",
+            ids.join(", ")
         )));
     }
     Ok(None)
 }
 
-// The path of the `*_OFFSETS` static for the use-site group `instance_id`, emitted in the module of
+// The path of the `*_TABLE` static for the use-site group `instance_id`, emitted in the module of
 // its parent struct `parent_id`.
-fn use_site_offsets_table(
+fn use_site_table_path(
     ctx: &GeneratorContext,
     parent_id: u64,
     instance_id: u64,
@@ -2989,13 +2977,13 @@ fn use_site_offsets_table(
     Ok(format!(
         "{}::{}",
         ctx.get_qualified_module(parent_id),
-        use_site_offsets_name(ctx, instance_id)?
+        use_site_table_name(ctx, instance_id)?
     ))
 }
 
-fn use_site_offsets_name(ctx: &GeneratorContext, instance_id: u64) -> ::capnp::Result<String> {
+fn use_site_table_name(ctx: &GeneratorContext, instance_id: u64) -> ::capnp::Result<String> {
     Ok(format!(
-        "{}_OFFSETS",
+        "{}_TABLE",
         camel_to_snake_case(ctx.get_last_name(instance_id)?).to_ascii_uppercase()
     ))
 }
@@ -3050,13 +3038,7 @@ fn generate_group_newtype_trait(
     ];
     let any_reader = any_reader_items(ctx, template_id)?;
     let any_builder = any_builder_items(ctx, template_id)?;
-    let downcasts = any_downcast_impls(
-        ctx,
-        template_id,
-        false,
-        !any_reader.is_empty(),
-        !any_builder.is_empty(),
-    )?;
+    let downcasts = any_downcast_impls(ctx, !any_reader.is_empty(), !any_builder.is_empty())?;
     module_items.extend(any_reader);
     module_items.extend(any_builder);
     module_items.extend(downcasts);
@@ -3079,10 +3061,16 @@ fn generate_newtype_impl(
     alias_id: u64,
     instance_id: u64,
 ) -> ::capnp::Result<FormattedText> {
-    Ok(Branch(vec![
-        generate_group_newtype_impl(ctx, alias_id, instance_id)?,
-        generate_union_newtype_impl(ctx, alias_id, instance_id)?,
-    ]))
+    let mut out = Vec::new();
+    if has_use_site_table(ctx, alias_id)? {
+        if let Some(template_id) = newtype_template_id(ctx, alias_id)? {
+            out.push(BlankLine);
+            out.push(use_site_table_static(ctx, template_id, instance_id)?);
+        }
+    }
+    out.push(generate_group_newtype_impl(ctx, alias_id, instance_id)?);
+    out.push(generate_union_newtype_impl(ctx, alias_id, instance_id)?);
+    Ok(Branch(out))
 }
 
 // The generics a use site's concrete types carry: a group stamped inside a generic struct is
@@ -3205,20 +3193,13 @@ fn generate_group_newtype_impl(
     let trait_path = ctx.get_qualified_module(alias_id);
     let concrete = ctx.get_qualified_module(instance_id);
 
-    // Erased-carrier wiring: a per-use-site offset table (recursively over nested members) plus
-    // `as_any()` on the concrete reader -- through the public `IntoInternalStructReader`, since the
+    // Erased-carrier wiring: `as_any()` on the concrete reader over the use site's table (emitted
+    // by `generate_newtype_impl`) -- through the public `IntoInternalStructReader`, since the
     // inner field is private at this impl site.
     let mut any_items = Vec::new();
     {
-        let mut offsets = Vec::new();
-        collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
-        let n = offsets.len();
-        let table = use_site_offsets_name(ctx, instance_id)?;
+        let table = use_site_table_name(ctx, instance_id)?;
         any_items.push(BlankLine);
-        any_items.push(Line(format!(
-            "static {table}: [u32; {n}] = [{}];",
-            offsets.join(", ")
-        )));
         any_items.push(Line(format!(
             "impl<'a{g}> {concrete}::Reader<'a{g}> {wc}{{"
         )));
@@ -3351,13 +3332,7 @@ fn generate_union_newtype_trait(
     ];
     let any_reader = union_any_reader_items(ctx, template_id)?;
     let any_builder = union_any_builder_items(ctx, template_id)?;
-    let downcasts = any_downcast_impls(
-        ctx,
-        template_id,
-        true,
-        !any_reader.is_empty(),
-        !any_builder.is_empty(),
-    )?;
+    let downcasts = any_downcast_impls(ctx, !any_reader.is_empty(), !any_builder.is_empty())?;
     module_items.extend(any_reader);
     module_items.extend(any_builder);
     module_items.extend(downcasts);
@@ -3472,26 +3447,19 @@ fn generate_union_newtype_impl(
     let mut builder_items = builder_assoc;
     builder_items.extend(builder_methods);
 
-    // Erased-carrier wiring: the offset table plus a runtime discriminant offset, then `as_any()`.
-    let mut offsets = Vec::new();
-    collect_leaf_offsets(ctx, template_id, instance_id, &mut offsets)?;
-    let n = offsets.len();
-    let disc = instance.get_discriminant_offset();
-    let table = use_site_offsets_name(ctx, instance_id)?;
+    // Erased-carrier wiring: `as_any()` over the use site's table (which carries the discriminant
+    // offset; emitted by `generate_newtype_impl`).
+    let table = use_site_table_name(ctx, instance_id)?;
     let any_items = vec![
         BlankLine,
-        Line(format!(
-            "static {table}: [u32; {n}] = [{}];",
-            offsets.join(", ")
-        )),
         Line(format!("impl<'a{g}> {concrete}::Reader<'a{g}> {wc}{{")),
         indent(Line(fmt!(ctx,
-            "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), {disc}, &{table}) }}"
+            "pub fn as_any(self) -> {trait_path}::AnyReader<'a> {{ {trait_path}::AnyReader::new({capnp}::traits::IntoInternalStructReader::into_internal_struct_reader(self), &{table}) }}"
         ))),
         line("}"),
         Line(format!("impl<'a{g}> {concrete}::Builder<'a{g}> {wc}{{")),
         indent(Line(fmt!(ctx,
-            "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), {disc}, &{table}) }}"
+            "pub fn as_any(self) -> {trait_path}::AnyBuilder<'a> {{ {trait_path}::AnyBuilder::new({capnp}::traits::IntoInternalStructBuilder::into_internal_struct_builder(self), &{table}) }}"
         ))),
         line("}"),
     ];

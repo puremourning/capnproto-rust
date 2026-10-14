@@ -48,6 +48,8 @@ pub mod test_default_parent_module {
 
 capnp::generated_code!(pub mod test_newtype_capnp);
 capnp::generated_code!(pub mod test_newtype_import_capnp);
+capnp::generated_code!(pub mod test_newtype_evolution_v1_capnp);
+capnp::generated_code!(pub mod test_newtype_evolution_v2_capnp);
 
 capnp::generated_code!(pub mod test_in_dir_capnp, "schema/test_in_dir_capnp.rs");
 
@@ -61,6 +63,9 @@ mod test_util;
 
 #[cfg(test)]
 mod dynamic;
+
+#[cfg(test)]
+mod newtype_evolution;
 
 #[cfg(test)]
 mod tests {

@@ -16,6 +16,18 @@ fn main() {
         .run()
         .expect("compiling schema");
 
+    // Two versions of an evolving newtype schema, for the cross-version tests in
+    // newtype_evolution.rs. Their newtypes share ids, so each needs a run of its own.
+    for file in [
+        "test-newtype-evolution-v1.capnp",
+        "test-newtype-evolution-v2.capnp",
+    ] {
+        capnpc::CompilerCommand::new()
+            .file(file)
+            .run()
+            .expect("compiling schema");
+    }
+
     capnpc::CompilerCommand::new()
         .file("test-default-parent-module.capnp")
         .file("test-default-parent-module-override.capnp")

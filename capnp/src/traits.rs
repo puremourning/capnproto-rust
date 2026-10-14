@@ -41,30 +41,91 @@ pub trait IntoInternalStructBuilder<'a> {
     fn into_internal_struct_builder(self) -> StructBuilder<'a>;
 }
 
+/// The offset a [`UseSiteTable`] gives for a member that is not mapped at
+/// that use site (an incomplete `@[...]`, or a member the table's schema
+/// version doesn't have).
+pub const UNMAPPED: u32 = 0xffff_ffff;
+
+/// One entry of a [`UseSiteTable`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UseSiteEntry<'t> {
+    /// A slot member: its offset in the parent's data or pointer section,
+    /// in units of the member's type, or [`UNMAPPED`].
+    Offset(u32),
+    /// A member that is itself a group or union newtype: its own table.
+    Nested(&'t UseSiteTable<'t>),
+}
+
+/// Where one use site of a group or union `type` newtype places the
+/// newtype's members within the parent struct.
+///
+/// There is one table per template level. `entries` is indexed by a
+/// member's position in the newtype template's `fields` list, which is
+/// stable under schema evolution (new fields are appended). A table built
+/// from an older or newer version of the newtype than the carrier reading
+/// it may therefore be shorter or longer: an index past the end is
+/// unmapped, and extra entries are ignored.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseSiteTable<'t> {
+    /// Indexed by template field position.
+    pub entries: &'t [UseSiteEntry<'t>],
+    /// For a union newtype: the offset of its discriminant, in 16-bit
+    /// units. [`UNMAPPED`] if the union itself is not mapped. Unused by
+    /// non-union newtypes.
+    pub discriminant_offset: u32,
+}
+
+/// The table of a use site where nothing is mapped.
+pub static EMPTY_USE_SITE_TABLE: UseSiteTable<'static> = UseSiteTable {
+    entries: &[],
+    discriminant_offset: UNMAPPED,
+};
+
+impl<'t> UseSiteTable<'t> {
+    /// The offset of the slot member at template field position `index`, or
+    /// [`UNMAPPED`] if it isn't mapped at this use site.
+    #[inline]
+    pub fn offset(&self, index: usize) -> u32 {
+        match self.entries.get(index) {
+            Some(UseSiteEntry::Offset(offset)) => *offset,
+            _ => UNMAPPED,
+        }
+    }
+
+    /// The table of the nested-newtype member at template field position
+    /// `index`, or `None` if it isn't mapped at this use site.
+    #[inline]
+    pub fn get_nested(&self, index: usize) -> Option<&'t UseSiteTable<'t>> {
+        match self.entries.get(index) {
+            Some(UseSiteEntry::Nested(table)) => Some(table),
+            _ => None,
+        }
+    }
+
+    /// Like [`get_nested`](Self::get_nested), but an unmapped member gets
+    /// [`EMPTY_USE_SITE_TABLE`], over which every read gives the default.
+    #[inline]
+    pub fn nested(&self, index: usize) -> &'t UseSiteTable<'t> {
+        self.get_nested(index).unwrap_or(&EMPTY_USE_SITE_TABLE)
+    }
+}
+
 /// The reader every group or union `type` newtype generates: one type that
 /// reads the newtype at any of its use sites.
 ///
 /// Inlining lets each struct place a newtype's members wherever they fit,
-/// so a use site is described by the parent's raw reader plus an offset
-/// table saying where each member lives. Typed code gets one from a use
-/// site's `as_any()`. Dynamic code gets one with
+/// so a use site is described by the parent's raw reader plus a
+/// [`UseSiteTable`] saying where each member lives. Typed code gets one
+/// from a use site's `as_any()`. Dynamic code gets one with
 /// `dynamic_value::Reader::downcast::<vec3::AnyReader>()` on the group,
 /// which reads the same table from the schema.
 pub trait AnyReader<'a>: Sized {
     /// The id of the `type` declaration this reads (not of an alias of it).
     const TYPE_ID: u64;
 
-    /// How many entries a use site's offset table has.
-    const LEAF_COUNT: usize;
-
-    /// Builds the reader over one use site. `discriminant_offset` is used
-    /// only by union newtypes. Generated code and `downcast` call this;
-    /// other code normally doesn't.
-    fn from_use_site(
-        reader: StructReader<'a>,
-        offsets: &'a [u32],
-        discriminant_offset: u32,
-    ) -> Self;
+    /// Builds the reader over one use site. Generated code and `downcast`
+    /// call this; other code normally doesn't.
+    fn from_use_site(reader: StructReader<'a>, table: &'a UseSiteTable<'a>) -> Self;
 }
 
 /// The builder counterpart of [`AnyReader`].
@@ -72,16 +133,9 @@ pub trait AnyBuilder<'a>: Sized {
     /// The id of the `type` declaration this writes (not of an alias of it).
     const TYPE_ID: u64;
 
-    /// How many entries a use site's offset table has.
-    const LEAF_COUNT: usize;
-
     /// Builds the builder over one use site; see
     /// [`AnyReader::from_use_site`].
-    fn from_use_site(
-        builder: StructBuilder<'a>,
-        offsets: &'a [u32],
-        discriminant_offset: u32,
-    ) -> Self;
+    fn from_use_site(builder: StructBuilder<'a>, table: &'a UseSiteTable<'a>) -> Self;
 }
 
 /// Trait for all types that can be converted to a low-level `ListReader`.

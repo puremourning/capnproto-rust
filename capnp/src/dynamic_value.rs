@@ -244,17 +244,17 @@ impl<'a> Builder<'a> {
 /// The `DowncastReader` implementation every generated `AnyReader` uses.
 ///
 /// Panics, like the other downcasts, unless `value` is a group declared
-/// with `T`'s newtype (directly or through aliases), and its offset table
-/// has the length `T` expects. A length mismatch means the code generated
-/// for the newtype and for the schema disagree about the newtype.
+/// with `T`'s newtype (directly or through aliases). The use site's table may
+/// come from a different version of the newtype than `T`: members `T` knows
+/// but the table lacks read as defaults, and members only the table knows
+/// are ignored.
 #[doc(hidden)]
 pub fn downcast_any_reader<'a, T: crate::traits::AnyReader<'a>>(value: Reader<'a>) -> T {
     let Reader::Struct(group) = value else {
         panic!("downcast to an AnyReader: the value is not a group");
     };
     let raw = group.schema.raw.generic;
-    check_any_layout(raw, T::TYPE_ID, T::LEAF_COUNT);
-    T::from_use_site(group.reader, raw.any_offsets, raw.any_discriminant_offset)
+    T::from_use_site(group.reader, check_any_layout(raw, T::TYPE_ID))
 }
 
 /// The `DowncastBuilder` implementation every generated `AnyBuilder` uses;
@@ -265,21 +265,19 @@ pub fn downcast_any_builder<'a, T: crate::traits::AnyBuilder<'a>>(value: Builder
         panic!("downcast to an AnyBuilder: the value is not a group");
     };
     let raw = group.schema.raw.generic;
-    check_any_layout(raw, T::TYPE_ID, T::LEAF_COUNT);
-    T::from_use_site(group.builder, raw.any_offsets, raw.any_discriminant_offset)
+    T::from_use_site(group.builder, check_any_layout(raw, T::TYPE_ID))
 }
 
-fn check_any_layout(raw: &crate::introspect::RawStructSchema, type_id: u64, leaf_count: usize) {
-    assert!(
-        raw.newtype_ids.contains(&type_id),
-        "downcast to an AnyReader/AnyBuilder: the group was not declared as type {type_id:#x}"
-    );
-    assert_eq!(
-        raw.any_offsets.len(),
-        leaf_count,
-        "downcast to an AnyReader/AnyBuilder: the use site's offset table doesn't match \
-         type {type_id:#x}; were they generated from different versions of it?"
-    );
+fn check_any_layout(
+    raw: &crate::introspect::RawStructSchema,
+    type_id: u64,
+) -> &'static crate::traits::UseSiteTable<'static> {
+    match raw.any_table {
+        Some(table) if raw.newtype_ids.contains(&type_id) => table,
+        _ => panic!(
+            "downcast to an AnyReader/AnyBuilder: the group was not declared as type {type_id:#x}"
+        ),
+    }
 }
 
 /// Helper trait for the `dynamic_value::Builder::downcast()` method.

@@ -270,12 +270,9 @@ pub struct RawStructSchema {
     pub(crate) newtype_ids: &'static [u64],
 
     /// For such a use site: where each of the newtype's members lives in
-    /// the parent's data, in the order the newtype declares them. This is
-    /// the table the generated `as_any()` hands to `AnyReader::new`.
-    pub(crate) any_offsets: &'static [u32],
-
-    /// For a use site of a union newtype: where its discriminant lives.
-    pub(crate) any_discriminant_offset: u32,
+    /// the parent. This is the table the generated `as_any()` hands to
+    /// `AnyReader::new`.
+    pub(crate) any_table: Option<&'static crate::traits::UseSiteTable<'static>>,
 }
 
 impl RawStructSchema {
@@ -293,8 +290,7 @@ impl RawStructSchema {
             members_by_name,
             field_newtypes: &[],
             newtype_ids: &[],
-            any_offsets: &[],
-            any_discriminant_offset: 0,
+            any_table: None,
         }
     }
 
@@ -310,12 +306,10 @@ impl RawStructSchema {
     pub const fn with_any_layout(
         mut self,
         newtype_ids: &'static [u64],
-        offsets: &'static [u32],
-        discriminant_offset: u32,
+        table: &'static crate::traits::UseSiteTable<'static>,
     ) -> Self {
         self.newtype_ids = newtype_ids;
-        self.any_offsets = offsets;
-        self.any_discriminant_offset = discriminant_offset;
+        self.any_table = Some(table);
         self
     }
 }
