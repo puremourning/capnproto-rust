@@ -82,6 +82,8 @@ pub mod primitive_list;
 pub mod private;
 pub mod raw;
 pub mod schema;
+#[cfg(feature = "std")]
+pub mod schema_loader;
 pub mod serialize;
 pub mod serialize_packed;
 pub(crate) mod stringify;
