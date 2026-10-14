@@ -4,14 +4,77 @@
 //! `nodes` of a `CodeGeneratorRequest` produced by `capnp compile -o-`, and turns them into
 //! [`StructSchema`] / [`EnumSchema`] / [`Type`] values. Those drive the dynamic API
 //! ([`crate::dynamic_struct`], [`crate::dynamic_list`], [`crate::dynamic_value`] and their
-//! `Debug` output) exactly as compiled-in schemas do:
+//! `Debug` output) exactly as compiled-in schemas do.
 //!
-//! ```ignore
+//! Point the result at bytes with [`message::Reader::get_root_as_dynamic`],
+//! [`any_pointer::Reader::get_as_dynamic`](crate::any_pointer::Reader::get_as_dynamic) or the
+//! builder equivalents ([`message::Builder::init_root_dynamic`] and so on). How a program learns
+//! which type a message holds, and where its schema comes from, is up to it; `example/dynamic-dump`
+//! in the repository shows one convention, an envelope carrying a type id and, optionally, the
+//! schema nodes.
+//!
+//! # Example
+//!
+//! The request would normally come from `capnp compile -o- point.capnp > point.cgr`, read with
+//! [`serialize::read_message`](crate::serialize::read_message). Here it is built by hand, for
+//! this schema:
+//!
+//! ```capnp
+//! struct Point { x @0 :Int32; y @1 :Int32; }
+//! ```
+//!
+//! ```
+//! use capnp::message;
+//! use capnp::schema_capnp::code_generator_request;
+//! use capnp::schema_loader::SchemaLoader;
+//! # use capnp::schema_capnp::{field, node};
+//! # const POINT_ID: u64 = 0xd1b2_0dca_6b1d_9a01;
+//! # fn point_cgr() -> message::Builder<message::HeapAllocator> {
+//! #     let mut message = message::Builder::new_default();
+//! #     let cgr: code_generator_request::Builder = message.init_root();
+//! #     let mut point = cgr.init_nodes(1).get(0);
+//! #     point.set_id(POINT_ID);
+//! #     point.set_display_name("point.capnp:Point");
+//! #     point.set_display_name_prefix_length(12);
+//! #     let mut st = point.init_struct();
+//! #     st.set_data_word_count(1);
+//! #     st.set_preferred_list_encoding(capnp::schema_capnp::ElementSize::EightBytes);
+//! #     let mut fields = st.init_fields(2);
+//! #     for (i, name) in ["x", "y"].into_iter().enumerate() {
+//! #         let mut f = fields.reborrow().get(i as u32);
+//! #         f.set_name(name);
+//! #         f.set_code_order(i as u16);
+//! #         f.set_discriminant_value(field::NO_DISCRIMINANT);
+//! #         f.reborrow().init_ordinal().set_explicit(i as u16);
+//! #         let mut slot = f.init_slot();
+//! #         slot.set_offset(i as u32);
+//! #         slot.reborrow().init_type().set_int32(());
+//! #         slot.init_default_value().set_int32(0);
+//! #     }
+//! #     message
+//! # }
+//!
+//! # fn main() -> capnp::Result<()> {
+//! let cgr_message = point_cgr();
+//! let cgr: code_generator_request::Reader = cgr_message.get_root_as_reader()?;
+//!
 //! let loader = SchemaLoader::new();
 //! loader.load_code_generator_request(cgr)?;
-//! let schema = loader.get_struct(type_id)?;
-//! let value = message.get_root_as_dynamic(schema)?;
-//! println!("{value:?}");
+//! let schema = loader.get_struct(POINT_ID)?;
+//!
+//! // Write a Point through the dynamic API...
+//! let mut message = message::Builder::new_default();
+//! let mut point = message.init_root_dynamic(schema)?;
+//! point.set_named("x", 3i32.into())?;
+//! point.set_named("y", (-4i32).into())?;
+//!
+//! // ...and read it back.
+//! let message = message.into_reader();
+//! let point = message.get_root_as_dynamic(schema)?;
+//! assert_eq!(point.get_named("y")?.downcast::<i32>(), -4);
+//! assert_eq!(format!("{point:?}"), "(x = 3, y = -4)");
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # Validation

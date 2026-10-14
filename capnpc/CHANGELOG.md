@@ -1,3 +1,10 @@
+## Unreleased
+Requires the matching (unreleased) capnp-newtype; regenerate existing generated code.
+- Build struct schemas with `RawBrandedStructSchema::compiled(..)`, and emit
+  `get_brand_binding` for generic structs.
+- Fix `MEMBERS_BY_NAME` being sorted by the `$Rust.name` annotation instead of the schema
+  name, which broke `StructSchema::find_field_by_name()` for renamed fields.
+
 ## v0.28.1
 - Merge upstream capnpc v0.28.0 and v0.28.1:
   - Adjust generated code for updated `imbue()` API in base crate.
