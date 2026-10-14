@@ -37,6 +37,16 @@ fn main() {
             .expect("compiling schema");
     }
 
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
+
+    // A small protocol the schema loader's downcast tests read both as generated code and as a
+    // request of its own, so a test can load it into a fresh loader cheaply.
+    capnpc::CompilerCommand::new()
+        .file("test-schema-loader-protocol.capnp")
+        .raw_code_generator_request_path(format!("{out_dir}/schema-loader-protocol.cgr"))
+        .run()
+        .expect("compiling schema");
+
     // A schema only the runtime schema loader reads (see the file): dump its request without
     // generating code.
     let output = std::process::Command::new("capnp")
@@ -48,7 +58,6 @@ fn main() {
         "capnp compile failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
     std::fs::write(format!("{out_dir}/schema-loader.cgr"), output.stdout)
         .expect("writing schema-loader.cgr");
 
