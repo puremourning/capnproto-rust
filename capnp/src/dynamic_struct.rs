@@ -234,13 +234,31 @@ impl<'a> Reader<'a> {
     }
 
     /// Downcasts the `Reader` into a specific struct type. Panics if the
-    /// expected type does not match the value.
+    /// value's type is not usable as `T` (see
+    /// [`Type::usable_as`](crate::introspect::Type::usable_as)); [`Self::try_downcast`]
+    /// returns an error instead.
     pub fn downcast<T: crate::traits::OwnedStruct>(self) -> T::Reader<'a> {
         assert!(
-            crate::introspect::Type::from(crate::introspect::TypeVariant::Struct(self.schema.raw))
-                == T::introspect()
+            self.is_usable_as::<T>(),
+            "downcast: the value's type is not usable as the target type"
         );
         self.reader.into()
+    }
+
+    /// Downcasts the `Reader` into a specific struct type, or fails with
+    /// [`ErrorKind::TypeMismatch`] if the value's type is not usable as `T` (see
+    /// [`Type::usable_as`](crate::introspect::Type::usable_as)).
+    pub fn try_downcast<T: crate::traits::OwnedStruct>(self) -> Result<T::Reader<'a>> {
+        if self.is_usable_as::<T>() {
+            Ok(self.reader.into())
+        } else {
+            Err(Error::from_kind(ErrorKind::TypeMismatch))
+        }
+    }
+
+    fn is_usable_as<T: crate::traits::OwnedStruct>(&self) -> bool {
+        crate::introspect::Type::from(crate::introspect::TypeVariant::Struct(self.schema.raw))
+            .usable_as(T::introspect())
     }
 }
 
@@ -785,13 +803,31 @@ impl<'a> Builder<'a> {
     }
 
     /// Downcasts the `Builder` into a specific struct type. Panics if the
-    /// expected type does not match the value.
+    /// value's type is not usable as `T` (see
+    /// [`Type::usable_as`](crate::introspect::Type::usable_as)); [`Self::try_downcast`]
+    /// returns an error instead.
     pub fn downcast<T: crate::traits::OwnedStruct>(self) -> T::Builder<'a> {
         assert!(
-            crate::introspect::Type::from(crate::introspect::TypeVariant::Struct(self.schema.raw))
-                == T::introspect()
+            self.is_usable_as::<T>(),
+            "downcast: the value's type is not usable as the target type"
         );
         self.builder.into()
+    }
+
+    /// Downcasts the `Builder` into a specific struct type, or fails with
+    /// [`ErrorKind::TypeMismatch`] if the value's type is not usable as `T` (see
+    /// [`Type::usable_as`](crate::introspect::Type::usable_as)).
+    pub fn try_downcast<T: crate::traits::OwnedStruct>(self) -> Result<T::Builder<'a>> {
+        if self.is_usable_as::<T>() {
+            Ok(self.builder.into())
+        } else {
+            Err(Error::from_kind(ErrorKind::TypeMismatch))
+        }
+    }
+
+    fn is_usable_as<T: crate::traits::OwnedStruct>(&self) -> bool {
+        crate::introspect::Type::from(crate::introspect::TypeVariant::Struct(self.schema.raw))
+            .usable_as(T::introspect())
     }
 }
 

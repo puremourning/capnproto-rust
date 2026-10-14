@@ -30,6 +30,15 @@
 //! one loader gives equal schemas. A loaded schema is never equal to a compiled one, and two
 //! loaders' schemas are never equal to each other, even for the same node.
 //!
+//! # Downcasting to compiled types
+//!
+//! `downcast::<T>()` of a loaded value to a compiled type `T` (and `try_downcast`, and the list
+//! downcasts) succeeds once [`SchemaLoader::load_compiled::<T>()`](SchemaLoader::load_compiled)
+//! has checked that the loader's nodes are compatible with `T`'s. It accepts exactly the
+//! loaded instantiation of `T`: a loaded `Message(Request(Text))` downcasts to
+//! `message::Owned<request::Owned<text::Owned>>` but not to `message::Owned<reply::Owned<..>>`.
+//! See [`Type::usable_as`].
+//!
 //! # Memory
 //!
 //! Loaded schemas are `'static`, like compiled ones, so the loader never frees what it
@@ -104,7 +113,7 @@ impl SchemaLoader {
         for node in nodes {
             copies.push((node.get_id(), canonical_copy(node)?));
         }
-        lock(self.inner).load_batch(self.inner, copies)
+        lock(self.inner).load_batch(self.inner, copies, &HashMap::new())
     }
 
     /// Loads every node of a `CodeGeneratorRequest` (`capnp compile -o- foo.capnp`). Such a
@@ -114,6 +123,81 @@ impl SchemaLoader {
         cgr: code_generator_request::Reader<'_>,
     ) -> Result<()> {
         self.load(cgr.get_nodes()?)
+    }
+
+    /// Makes loaded values usable as compiled type `T` and every compiled struct and enum it
+    /// reaches, through its fields and brand bindings: after this, `downcast::<T>()` and
+    /// `try_downcast::<T>()` of a loaded value whose type is usable as `T` succeed (see
+    /// [`Type::usable_as`]). Like C++'s `loadCompiledTypeAndDependencies<T>()`.
+    ///
+    /// For each compiled node reached:
+    /// - if a node with its id is loaded, the two must be compatible, which for now means equal
+    ///   (canonically encoded), or this fails;
+    /// - otherwise the compiled node is loaded, as by [`load`](Self::load), so later batches
+    ///   can refer to it. That fails, loading nothing, if the node refers to nodes generated
+    ///   code doesn't carry (annotations, `type` newtypes, interfaces) and that aren't loaded.
+    ///
+    /// The instance of each loaded struct that corresponds to a compiled one reached
+    /// (`Message(Request(Text))` for `message::Owned<request::Owned<text::Owned>>`) is
+    /// interned, so a loaded value of that type takes the fast path on its first downcast.
+    ///
+    /// Nothing is changed if this fails.
+    pub fn load_compiled<T: Introspect>(&self) -> Result<()> {
+        let mut graph = CompiledGraph::default();
+        graph.visit(T::introspect())?;
+        let mut copies = Vec::new();
+        for node in &graph.nodes {
+            copies.push(canonical_copy(node.proto)?);
+        }
+
+        let translated = {
+            let mut inner = lock(self.inner);
+            let mut new = Vec::new();
+            let mut scopes = HashMap::new();
+            for (node, words) in graph.nodes.iter().zip(copies) {
+                match inner.nodes.get(&node.id) {
+                    Some(loaded) if loaded.words == &words[..] => {}
+                    Some(_) => {
+                        let name = node
+                            .proto
+                            .get_display_name()
+                            .ok()
+                            .and_then(|n| n.to_str().ok())
+                            .unwrap_or("?");
+                        return Err(failed(format!(
+                            "schema loader: the loaded node {:#x} is not compatible with compiled `{name}`",
+                            node.id
+                        )));
+                    }
+                    None => {
+                        scopes.insert(node.id, node.scopes.to_vec());
+                        new.push((node.id, words));
+                    }
+                }
+            }
+            inner.load_batch(self.inner, new, &scopes)?;
+            for node in &graph.nodes {
+                let loaded = inner.loaded(node.id)?;
+                let mut compatible = lock(&loaded.compatible);
+                if !compatible.iter().any(|a| core::ptr::eq(*a, node.arena)) {
+                    compatible.push(node.arena);
+                }
+            }
+            let mut translated = Vec::new();
+            for ty in &graph.types {
+                translated.push(inner.translate(*ty)?);
+            }
+            translated
+        };
+        // Outside the lock: memoise each instance's cast now.
+        for (loaded, compiled) in translated.into_iter().zip(graph.types) {
+            if !loaded.usable_as(compiled) {
+                return Err(failed(format!(
+                    "schema loader: a loaded type is not usable as compiled {compiled:?}"
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// The struct with id `id`. Generic parameters are unbound, which reads as `AnyPointer`.
@@ -188,10 +272,91 @@ impl SchemaLoader {
     }
 }
 
-fn lock(inner: &Mutex<Inner>) -> MutexGuard<'_, Inner> {
-    // Nothing panics while the lock is held on valid input, but if something did, the maps are
+/// A compiled struct or enum node that [`SchemaLoader::load_compiled`] reached.
+struct CompiledNode {
+    id: u64,
+    arena: &'static GeneratedCodeArena,
+    proto: node::Reader<'static>,
+    /// For a struct: its brand scopes, as generated code gives them.
+    scopes: &'static [BrandScope],
+}
+
+/// The compiled types [`SchemaLoader::load_compiled`] reaches from a root, and their nodes.
+#[derive(Default)]
+struct CompiledGraph {
+    /// Every compiled struct and enum type reached, in the order reached.
+    types: Vec<Type>,
+    seen: HashSet<Type>,
+    nodes: Vec<CompiledNode>,
+}
+
+impl CompiledGraph {
+    fn add_node(&mut self, node: CompiledNode) {
+        if !self
+            .nodes
+            .iter()
+            .any(|n| core::ptr::eq(n.arena, node.arena))
+        {
+            self.nodes.push(node);
+        }
+    }
+
+    /// Visits `ty` and, through field types and brand bindings, everything compiled it
+    /// reaches. Generated code can be recursive, hence the `seen` set; it can't express
+    /// polymorphic recursion, so the walk is finite.
+    fn visit(&mut self, ty: Type) -> Result<()> {
+        let mut stack = vec![ty];
+        while let Some(ty) = stack.pop() {
+            match ty.which() {
+                TypeVariant::List(element) => stack.push(element),
+                TypeVariant::Struct(raw) if !raw.is_loaded() => {
+                    if !self.seen.insert(ty) {
+                        continue;
+                    }
+                    self.types.push(ty);
+                    let schema = StructSchema::new(raw);
+                    let proto = schema.get_proto();
+                    self.add_node(CompiledNode {
+                        id: proto.get_id(),
+                        arena: raw.generic.arena,
+                        proto,
+                        scopes: raw.generic.brand_scopes,
+                    });
+                    for field in schema.get_fields()? {
+                        stack.push(field.get_type());
+                    }
+                    for scope in raw.generic.brand_scopes {
+                        for i in 0..scope.param_count() {
+                            if let Some(t) = raw.brand_binding(scope.scope_id(), i) {
+                                stack.push(t);
+                            }
+                        }
+                    }
+                }
+                TypeVariant::Enum(raw) if !raw.is_loaded() => {
+                    if !self.seen.insert(ty) {
+                        continue;
+                    }
+                    self.types.push(ty);
+                    let proto = EnumSchema::new(raw).get_proto();
+                    self.add_node(CompiledNode {
+                        id: proto.get_id(),
+                        arena: raw.arena,
+                        proto,
+                        scopes: &[],
+                    });
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    // Nothing panics while a lock is held on valid input, but if something did, the data is
     // still consistent: entries are only ever added, after they are complete.
-    inner.lock().unwrap_or_else(|e| e.into_inner())
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn any_pointer() -> Type {
@@ -300,6 +465,7 @@ impl Kind {
 /// A loaded node: a canonical copy of its encoding, which is also the arena its schemas read
 /// from, and what is computed from it once.
 pub(crate) struct LoadedNode {
+    id: u64,
     words: &'static [Word],
     arena: &'static GeneratedCodeArena,
     kind: Kind,
@@ -312,6 +478,9 @@ pub(crate) struct LoadedNode {
     /// For a struct node.
     raw: Option<&'static RawStructSchema>,
     loader: &'static Mutex<Inner>,
+    /// The arenas of the compiled nodes [`SchemaLoader::load_compiled`] found compatible with
+    /// this one.
+    compatible: Mutex<Vec<&'static GeneratedCodeArena>>,
 }
 
 impl LoadedNode {
@@ -324,6 +493,13 @@ impl LoadedNode {
         )
         .get_as()
         .expect("loaded node")
+    }
+
+    fn is_compatible_with(&self, id: u64, arena: &'static GeneratedCodeArena) -> bool {
+        self.id == id
+            && lock(&self.compatible)
+                .iter()
+                .any(|a| core::ptr::eq(*a, arena))
     }
 
     fn param_count(&self) -> usize {
@@ -361,6 +537,8 @@ pub(crate) struct LoadedBrand {
     fields: OnceLock<Box<[LazyType]>>,
     /// Set once, before the instance is published.
     annotations: OnceLock<AnnotationTypes>,
+    /// The compiled struct types this instance was found usable as.
+    can_cast_to: Mutex<Vec<core::any::TypeId>>,
 }
 
 impl LoadedBrand {
@@ -433,6 +611,53 @@ impl LoadedBrand {
 
     pub(crate) fn brand_binding(&self, scope_id: u64, index: u16) -> Option<Type> {
         self.ctx().get(scope_id, index)
+    }
+
+    /// Whether this struct instance is usable as compiled struct `target`, whose type id is
+    /// `type_id`; see [`Type::usable_as`].
+    pub(crate) fn usable_as(
+        &'static self,
+        target: RawBrandedStructSchema,
+        type_id: core::any::TypeId,
+    ) -> bool {
+        if lock(&self.can_cast_to).contains(&type_id) {
+            return true;
+        }
+        let target_id = StructSchema::new(target).get_proto().get_id();
+        if !self
+            .node
+            .is_compatible_with(target_id, target.generic.arena)
+        {
+            return false;
+        }
+        // Bindings, not field types: they tell `Foo(Text)` from `Foo(Data)` even when nothing
+        // uses the parameter. They are finite trees, so this terminates.
+        for scope in self.node.scopes.iter().chain(target.generic.brand_scopes) {
+            for i in 0..scope.param_count() {
+                let usable = match (
+                    self.brand_binding(scope.scope_id(), i),
+                    target.brand_binding(scope.scope_id(), i),
+                ) {
+                    (Some(a), Some(b)) => a.usable_as(b),
+                    (None, None) => true,
+                    _ => false,
+                };
+                if !usable {
+                    return false;
+                }
+            }
+        }
+        let mut memo = lock(&self.can_cast_to);
+        if !memo.contains(&type_id) {
+            memo.push(type_id);
+        }
+        true
+    }
+
+    /// Whether this enum is usable as compiled enum `target`; see [`Type::usable_as`].
+    pub(crate) fn enum_usable_as(&self, target: RawEnumSchema) -> bool {
+        let target_id = EnumSchema::new(target).get_proto().get_id();
+        self.node.kind == Kind::Enum && self.node.is_compatible_with(target_id, target.arena)
     }
 }
 
@@ -508,6 +733,9 @@ trait Graph<'a> {
     fn node(&self, id: u64) -> Option<node::Reader<'a>>;
     /// See [`LoadedNode::parent`].
     fn parent(&self, id: u64) -> u64;
+    /// The brand scopes of node `id`, if they are known without walking its scope chain: for
+    /// a loaded node, and for a node from generated code, whose chain may be incomplete.
+    fn known_scopes(&self, id: u64) -> Option<&[BrandScope]>;
 }
 
 impl Graph<'static> for Inner {
@@ -517,11 +745,16 @@ impl Graph<'static> for Inner {
     fn parent(&self, id: u64) -> u64 {
         self.nodes.get(&id).map_or(0, |n| n.parent)
     }
+    fn known_scopes(&self, id: u64) -> Option<&[BrandScope]> {
+        self.nodes.get(&id).map(|n| n.scopes)
+    }
 }
 
 struct Batch<'a> {
     nodes: HashMap<u64, node::Reader<'a>>,
     parents: HashMap<u64, u64>,
+    /// See [`Graph::known_scopes`].
+    scopes: HashMap<u64, &'a [BrandScope]>,
 }
 
 impl<'a> Graph<'a> for Batch<'a> {
@@ -530,6 +763,9 @@ impl<'a> Graph<'a> for Batch<'a> {
     }
     fn parent(&self, id: u64) -> u64 {
         self.parents.get(&id).copied().unwrap_or(0)
+    }
+    fn known_scopes(&self, id: u64) -> Option<&[BrandScope]> {
+        self.scopes.get(&id).copied()
     }
 }
 
@@ -578,10 +814,14 @@ impl Inner {
         }
     }
 
+    /// Loads a batch. `compiled_scopes` gives the brand scopes of nodes that come from
+    /// generated code (see [`SchemaLoader::load_compiled`]), whose scope chains may be
+    /// incomplete: generated code has no file nodes.
     fn load_batch(
         &mut self,
         me: &'static Mutex<Inner>,
         copies: Vec<(u64, Vec<Word>)>,
+        compiled_scopes: &HashMap<u64, Vec<BrandScope>>,
     ) -> Result<()> {
         // Content dedup: identical reloads are no-ops, anything else with a known id is a
         // conflict.
@@ -611,7 +851,7 @@ impl Inner {
             return Ok(());
         }
 
-        let prepared = self.prepare(&new)?;
+        let prepared = self.prepare(&new, compiled_scopes)?;
 
         // Commit. Nothing below fails: everything was validated and computed above.
         let mut added = Vec::new();
@@ -639,6 +879,7 @@ impl Inner {
                 &*Box::leak(Box::new(raw))
             });
             let node: &'static LoadedNode = Box::leak(Box::new(LoadedNode {
+                id,
                 words,
                 arena,
                 kind: p.kind,
@@ -646,6 +887,7 @@ impl Inner {
                 scopes,
                 raw,
                 loader: me,
+                compatible: Mutex::new(Vec::new()),
             }));
             self.nodes.insert(id, node);
             added.push(node);
@@ -661,6 +903,7 @@ impl Inner {
                     bindings: vec![any_pointer(); node.param_count()].into_boxed_slice(),
                     fields: OnceLock::new(),
                     annotations: OnceLock::new(),
+                    can_cast_to: Mutex::new(Vec::new()),
                 }));
                 self.defaults.insert(node.proto().get_id(), brand);
                 defaults.push(brand);
@@ -674,7 +917,11 @@ impl Inner {
     }
 
     /// Validates the new nodes and computes what they need, without committing anything.
-    fn prepare(&self, new: &[(u64, Vec<Word>)]) -> Result<Vec<Prepared>> {
+    fn prepare(
+        &self,
+        new: &[(u64, Vec<Word>)],
+        compiled_scopes: &HashMap<u64, Vec<BrandScope>>,
+    ) -> Result<Vec<Prepared>> {
         let segments: Vec<Vec<&[u8]>> = new
             .iter()
             .map(|(_, words)| vec![Word::words_to_bytes(words)])
@@ -693,10 +940,15 @@ impl Inner {
         let mut batch = Batch {
             nodes: HashMap::new(),
             parents: HashMap::new(),
+            scopes: HashMap::new(),
         };
         for (id, node) in &self.nodes {
             batch.nodes.insert(*id, node.proto());
             batch.parents.insert(*id, node.parent);
+            batch.scopes.insert(*id, node.scopes);
+        }
+        for (id, scopes) in compiled_scopes {
+            batch.scopes.insert(*id, scopes);
         }
         for r in &readers {
             batch.nodes.insert(r.get_id(), *r);
@@ -721,7 +973,8 @@ impl Inner {
 
         let mut prepared = Vec::new();
         for r in &readers {
-            prepared.push(prepare_node(&batch, *r).map_err(|e| {
+            let scopes = compiled_scopes.get(&r.get_id()).cloned();
+            prepared.push(prepare_node(&batch, *r, scopes).map_err(|e| {
                 let name = r
                     .get_display_name()
                     .ok()
@@ -824,11 +1077,45 @@ impl Inner {
             bindings: key.1.clone(),
             fields: OnceLock::new(),
             annotations: OnceLock::new(),
+            can_cast_to: Mutex::new(Vec::new()),
         }));
         // Insert first, so a field naming this same instance finds it.
         self.instances.insert(key, brand);
         self.fill(brand);
         Ok(Some(brand))
+    }
+
+    /// The loaded counterpart of compiled type `ty`, whose structs and enums are loaded.
+    fn translate(&mut self, ty: Type) -> Result<Type> {
+        Ok(match ty.which() {
+            TypeVariant::List(element) => Type::list_of(self.translate(element)?),
+            TypeVariant::Struct(raw) if !raw.is_loaded() => {
+                let id = StructSchema::new(raw).get_proto().get_id();
+                let node = self.loaded(id)?;
+                let mut bindings = Vec::with_capacity(node.param_count());
+                for scope in node.scopes {
+                    for i in 0..scope.param_count() {
+                        bindings.push(match raw.brand_binding(scope.scope_id(), i) {
+                            Some(t) => self.translate(t)?,
+                            None => any_pointer(),
+                        });
+                    }
+                }
+                match self.instance(id, bindings.into_boxed_slice(), true)? {
+                    Some(b) => b.struct_type(),
+                    None => unreachable!("interning always resolves"),
+                }
+            }
+            TypeVariant::Enum(raw) if !raw.is_loaded() => {
+                let id = EnumSchema::new(raw).get_proto().get_id();
+                let brand = self.default_brand(id)?;
+                if brand.node.kind != Kind::Enum {
+                    return Err(wrong_kind(id, "an enum"));
+                }
+                TypeVariant::Enum(brand.raw_enum()).into()
+            }
+            _ => ty,
+        })
     }
 
     /// The bindings of struct (or annotation) `target`'s scopes that `brand` gives, in `ctx`.
@@ -1184,24 +1471,32 @@ fn check_brand<'a>(
     if brand_scopes.is_empty() {
         return Ok(());
     }
+    // The target's scope chain may be incomplete (generated code has no file nodes, nor the
+    // parents of nested generics), so the scopes it is known to bind count too.
     let target_ancestors = if strict {
-        ancestors(graph, target, true)?
+        ancestors(graph, target, false)?
     } else {
         Vec::new()
     };
+    let known_scopes = graph.known_scopes(target).unwrap_or(&[]);
     for scope in brand_scopes {
         let sid = scope.get_scope_id();
-        if strict && !target_ancestors.contains(&sid) {
+        let param_count = if !strict {
+            None
+        } else if let Some(s) = known_scopes.iter().find(|s| s.scope_id() == sid) {
+            Some(u32::from(s.param_count()))
+        } else if target_ancestors.contains(&sid) {
+            Some(graph.node(sid).expect("ancestor").get_parameters()?.len())
+        } else {
             return Err(failed(format!(
                 "schema loader: a brand of node {target:#x} binds scope {sid:#x}, which is not one of its scopes"
             )));
-        }
+        };
         match scope.which()? {
             brand::scope::Inherit(()) => {}
             brand::scope::Bind(bindings) => {
                 let bindings = bindings?;
-                if strict {
-                    let count = graph.node(sid).expect("ancestor").get_parameters()?.len();
+                if let Some(count) = param_count {
                     if bindings.len() != count {
                         return Err(failed(format!(
                             "schema loader: a brand binds {} parameters of scope {sid:#x}, which has {count}",
@@ -1291,8 +1586,13 @@ fn check_member_order<'a>(
     Ok(())
 }
 
-/// Validates a new node and computes its tables.
-fn prepare_node<'a>(graph: &Batch<'a>, node: node::Reader<'a>) -> Result<Prepared> {
+/// Validates a new node and computes its tables. `compiled_scopes` are the node's brand
+/// scopes if it comes from generated code.
+fn prepare_node<'a>(
+    graph: &Batch<'a>,
+    node: node::Reader<'a>,
+    compiled_scopes: Option<Vec<BrandScope>>,
+) -> Result<Prepared> {
     let id = node.get_id();
     let kind = Kind::of(node)?;
     if !node.get_parameters()?.is_empty() && !node.get_is_generic() {
@@ -1302,7 +1602,10 @@ fn prepare_node<'a>(graph: &Batch<'a>, node: node::Reader<'a>) -> Result<Prepare
     }
     // Scope chains must not loop (groups are nested through them).
     ancestors(graph, id, false)?;
-    let scopes = brand_scopes(graph, node)?;
+    let scopes = match compiled_scopes {
+        Some(scopes) => scopes,
+        None => brand_scopes(graph, node)?,
+    };
     check_annotations(graph, node.get_annotations()?, &scopes)?;
 
     let mut tables = None;

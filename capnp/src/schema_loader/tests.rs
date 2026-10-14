@@ -992,3 +992,62 @@ fn valid_batch_survives_exercise() {
     ];
     exercise(&loader, &[POINT, SHAPE, SHAPE_INFO, BOX, USE], &data);
 }
+
+#[test]
+fn usable_as_is_equality_for_compiled_and_unrelated_types() {
+    let text = text_type();
+    let data = crate::data::Owned::introspect();
+    assert!(text.usable_as(text));
+    assert!(!text.usable_as(data));
+    assert!(Type::list_of(text).usable_as(Type::list_of(text)));
+    assert!(!Type::list_of(text).usable_as(text));
+    assert!(!Type::list_of(Type::list_of(text)).usable_as(Type::list_of(data)));
+    let node = node::Owned::introspect();
+    assert!(node.usable_as(node));
+    assert!(!node.usable_as(field::Owned::introspect()));
+}
+
+#[test]
+fn load_compiled_inserts_generated_nodes() {
+    // The bootstrap schema is generated code too: load `Node` and everything it reaches from
+    // it alone, then read a node through the loaded schema and downcast it.
+    let loader = SchemaLoader::new();
+    loader.load_compiled::<node::Owned>().unwrap();
+    // Idempotent.
+    loader.load_compiled::<node::Owned>().unwrap();
+    let TypeVariant::Struct(compiled) = node::Owned::introspect().which() else {
+        unreachable!()
+    };
+    let id = StructSchema::new(compiled).get_proto().get_id();
+    let schema = loader.get_struct(id).unwrap();
+    assert!(RawBrandedStructSchema::from(schema).is_loaded());
+
+    let mut message = message::Builder::new_default();
+    {
+        let mut n = message.init_root::<node::Builder<'_>>();
+        node_header(n.reborrow(), 0x42, 0, "x");
+        n.init_struct().set_data_word_count(3);
+    }
+    let root = message
+        .get_root_as_reader::<crate::any_pointer::Reader<'_>>()
+        .unwrap()
+        .get_as_dynamic(schema)
+        .unwrap();
+    assert_eq!(root.try_downcast::<node::Owned>().unwrap().get_id(), 0x42);
+    assert!(root.try_downcast::<field::Owned>().is_err());
+    // A group of it.
+    let st: crate::dynamic_struct::Reader<'_> = root.get_named("struct").unwrap().downcast();
+    let st = st.try_downcast::<node::struct_::Owned>().unwrap();
+    assert_eq!(st.get_data_word_count(), 3);
+    // And a builder.
+    let root = message.get_root_as_dynamic(schema).unwrap();
+    let mut typed = root.try_downcast::<node::Owned>().unwrap();
+    typed.set_id(0x43);
+    assert_eq!(
+        message
+            .get_root_as_reader::<node::Reader<'_>>()
+            .unwrap()
+            .get_id(),
+        0x43
+    );
+}
