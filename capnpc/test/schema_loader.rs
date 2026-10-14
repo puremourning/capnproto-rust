@@ -430,8 +430,8 @@ fn hash_map_of_loaded_fields() {
 #[test]
 #[should_panic]
 fn downcast_of_loaded_struct_to_compiled_type_panics() {
-    // `downcast::<T>()` compares schema identity, and a loaded schema is never a compiled one.
-    // (Making loaded values usable as compiled types is a separate, later feature.)
+    // A loaded schema is never a compiled one, and the shared loader was never told about the
+    // compiled type with `load_compiled` (see load_compiled.rs), so the downcast fails.
     let mut message = message::Builder::new_default();
     message.init_root::<test_all_types::Builder<'_>>();
     let root = root_pointer(&message)
@@ -1319,3 +1319,5 @@ fn name_lookup_ignores_rust_name_annotations() {
         );
     }
 }
+
+mod load_compiled;
