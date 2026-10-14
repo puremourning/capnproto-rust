@@ -27,6 +27,9 @@ pub mod arena;
 pub mod capability;
 pub mod layout;
 mod mask;
+#[cfg(feature = "alloc")]
+#[doc(hidden)]
+pub mod newtype_layout;
 mod primitive;
 mod read_limiter;
 pub mod units;

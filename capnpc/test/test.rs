@@ -73,6 +73,9 @@ mod dynamic;
 mod newtype_evolution;
 
 #[cfg(test)]
+mod newtype_layout;
+
+#[cfg(test)]
 mod schema_loader;
 
 #[cfg(test)]
