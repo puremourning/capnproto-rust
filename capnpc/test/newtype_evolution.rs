@@ -258,24 +258,22 @@ fn v1_carriers_write_v2_use_site() {
     }
 }
 
-// A version-2 builder over a version-1 use site, through the dynamic downcast.
-fn v2_builder_over_v1<T: capnp::dynamic_value::DowncastBuilder<'static>>(
-    field: &str,
-    f: impl FnOnce(T),
-) {
-    let message: &'static mut message::Builder<message::HeapAllocator> =
-        Box::leak(Box::new(v1_message()));
-    let root: dynamic_value::Builder<'static> = message
-        .get_root::<v1::holder::Builder<'static>>()
+// A version-2 builder over a version-1 use site, through the dynamic downcast. `f` gets the
+// field's dynamic builder and downcasts it to the carrier under test.
+fn v2_builder_over_v1(field: &str, f: impl FnOnce(dynamic_value::Builder<'_>)) {
+    let mut message = v1_message();
+    let root: dynamic_value::Builder<'_> = message
+        .get_root::<v1::holder::Builder<'_>>()
         .unwrap()
         .into();
-    let root: dynamic_struct::Builder<'static> = root.downcast();
-    f(root.get_named(field).unwrap().downcast());
+    let root: dynamic_struct::Builder<'_> = root.downcast();
+    f(root.get_named(field).unwrap());
 }
 
 #[test]
 fn v2_builder_over_v1_sets_known_fields() {
-    v2_builder_over_v1("a", |mut a: v2::vec::AnyBuilder<'_>| {
+    v2_builder_over_v1("a", |v| {
+        let mut a: v2::vec::AnyBuilder<'_> = v.downcast();
         a.set_x(100.0);
         assert_eq!(a.get_z(), 0.0); // unmapped: reads the default
     });
@@ -284,13 +282,17 @@ fn v2_builder_over_v1_sets_known_fields() {
 #[test]
 #[should_panic(expected = "field 'z' is not mapped at this use site")]
 fn v2_builder_over_v1_set_new_slot_panics() {
-    v2_builder_over_v1("a", |mut a: v2::vec::AnyBuilder<'_>| a.set_z(1.0));
+    v2_builder_over_v1("a", |v| {
+        let mut a: v2::vec::AnyBuilder<'_> = v.downcast();
+        a.set_z(1.0);
+    });
 }
 
 #[test]
 #[should_panic(expected = "field 'name' is not mapped at this use site")]
 fn v2_builder_over_v1_set_new_pointer_panics() {
-    v2_builder_over_v1("l", |mut l: v2::labeled::AnyBuilder<'_>| {
+    v2_builder_over_v1("l", |v| {
+        let mut l: v2::labeled::AnyBuilder<'_> = v.downcast();
         assert!(!l.has_name());
         l.set_name("x");
     });
@@ -299,19 +301,26 @@ fn v2_builder_over_v1_set_new_pointer_panics() {
 #[test]
 #[should_panic(expected = "field 'z' is not mapped at this use site")]
 fn v2_builder_over_v1_set_new_nested_slot_panics() {
-    v2_builder_over_v1("l", |l: v2::labeled::AnyBuilder<'_>| l.get_pos().set_z(1.0));
+    v2_builder_over_v1("l", |v| {
+        let l: v2::labeled::AnyBuilder<'_> = v.downcast();
+        l.get_pos().set_z(1.0);
+    });
 }
 
 #[test]
 #[should_panic(expected = "field 'square' is not mapped at this use site")]
 fn v2_builder_over_v1_set_new_union_arm_panics() {
-    v2_builder_over_v1("s", |mut s: v2::shape::AnyBuilder<'_>| s.set_square(1.0));
+    v2_builder_over_v1("s", |v| {
+        let mut s: v2::shape::AnyBuilder<'_> = v.downcast();
+        s.set_square(1.0);
+    });
 }
 
 #[test]
 #[should_panic(expected = "field 'z' is not mapped at this use site")]
 fn v2_builder_over_v1_set_new_slot_in_union_arm_panics() {
-    v2_builder_over_v1("s", |s: v2::shape::AnyBuilder<'_>| {
+    v2_builder_over_v1("s", |v| {
+        let s: v2::shape::AnyBuilder<'_> = v.downcast();
         let mut p = s.init_point();
         p.set_x(1.0);
         p.set_z(1.0);
