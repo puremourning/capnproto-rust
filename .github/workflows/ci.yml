@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, newtype ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, newtype ]
   schedule:
     # run weekly
     - cron: '0 0 * * 0'
@@ -29,10 +29,8 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
 
-    - name: Install Cap'n Proto
-      run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get install -y capnproto libcapnp-dev
+    - name: Install Cap'n Proto (newtype)
+      uses: ./.github/actions/install-capnp
 
     - name: Test feature flags
       run: |
@@ -74,10 +72,8 @@ jobs:
       - name: Setup miri
         run: cargo miri setup
 
-      - name: Install Cap'n Proto
-        run: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get install -y capnproto libcapnp-dev
+      - name: Install Cap'n Proto (newtype)
+        uses: ./.github/actions/install-capnp
 
       - name: Test default features
         run: cargo miri test --package capnp --package capnpc-test
@@ -111,10 +107,8 @@ jobs:
       with:
         toolchain: ${{ env.minrust }}
 
-    - name: Install Cap'n Proto
-      run: |
-          export DEBIAN_FRONTEND=noninteractive
-          sudo apt-get install -y capnproto libcapnp-dev
+    - name: Install Cap'n Proto (newtype)
+      uses: ./.github/actions/install-capnp
 
     - name: Test feature flags
       run: |
@@ -143,12 +137,11 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - name: Install Cap'n Proto
-        run: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get install -y capnproto libcapnp-dev
-
       - uses: actions/checkout@v7
+
+      - name: Install Cap'n Proto (newtype)
+        uses: ./.github/actions/install-capnp
+
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly-2025-12-02

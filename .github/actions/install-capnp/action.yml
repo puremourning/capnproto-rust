@@ -1,0 +1,32 @@
+name: Install Cap'n Proto (newtype)
+description: >-
+  Installs the prebuilt capnp tools (capnp, plugins and standard schemas) from the rolling
+  newtype release of puremourning/capnproto, and puts them on PATH. The newtype compiler is
+  used for every build, including ones that don't use newtypes, which it must also handle.
+
+inputs:
+  release:
+    description: Release tag to download from.
+    default: newtype-latest
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RELEASE: ${{ inputs.release }}
+      run: |
+        set -euo pipefail
+        case "$(uname -m)" in
+          x86_64) arch=x86_64 ;;
+          aarch64 | arm64) arch=aarch64 ;;
+          *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        pkg="capnproto-tools-newtype-linux-$arch"
+        dest="$RUNNER_TEMP/capnproto-newtype"
+        mkdir -p "$dest"
+        curl -fsSL --retry 3 \
+          "https://github.com/puremourning/capnproto/releases/download/$RELEASE/$pkg.tar.gz" \
+          | tar xz -C "$dest"
+        echo "$dest/$pkg/bin" >> "$GITHUB_PATH"
+        "$dest/$pkg/bin/capnp" --version
