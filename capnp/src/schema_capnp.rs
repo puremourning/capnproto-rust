@@ -11,12 +11,15 @@ pub mod node {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -55,12 +58,15 @@ pub mod node {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -241,12 +247,15 @@ pub mod node {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -965,12 +974,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -1009,12 +1021,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -1102,12 +1117,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -1274,12 +1292,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -1318,12 +1339,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -1415,12 +1439,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -1613,12 +1640,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -1657,12 +1687,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -1780,12 +1813,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -2108,12 +2144,13 @@ pub mod node {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -2154,12 +2191,13 @@ pub mod node {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -2257,12 +2295,13 @@ pub mod node {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -2492,12 +2531,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -2536,12 +2578,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -2659,12 +2704,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3013,12 +3061,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -3057,12 +3108,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3153,12 +3207,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3341,12 +3398,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -3385,12 +3445,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3495,12 +3558,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3743,12 +3809,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -3787,12 +3856,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -3891,12 +3963,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -4120,12 +4195,15 @@ pub mod node {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -4164,12 +4242,15 @@ pub mod node {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -4305,12 +4386,15 @@ pub mod node {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -4816,12 +4900,15 @@ pub mod field {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -4860,12 +4947,15 @@ pub mod field {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -4991,12 +5081,15 @@ pub mod field {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -5379,12 +5472,15 @@ pub mod field {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -5423,12 +5519,15 @@ pub mod field {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -5537,12 +5636,15 @@ pub mod field {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -5823,12 +5925,15 @@ pub mod field {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -5867,12 +5972,15 @@ pub mod field {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -5953,12 +6061,15 @@ pub mod field {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -6110,12 +6221,15 @@ pub mod field {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -6154,12 +6268,15 @@ pub mod field {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -6244,12 +6361,15 @@ pub mod field {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -6437,12 +6557,15 @@ pub mod enumerant {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -6481,12 +6604,15 @@ pub mod enumerant {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6592,12 +6718,15 @@ pub mod enumerant {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6843,12 +6972,15 @@ pub mod superclass {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -6887,12 +7019,15 @@ pub mod superclass {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -6984,12 +7119,15 @@ pub mod superclass {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7187,12 +7325,15 @@ pub mod method {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -7231,12 +7372,15 @@ pub mod method {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7387,12 +7531,15 @@ pub mod method {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -7853,12 +8000,15 @@ pub mod type_ {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -7897,12 +8047,15 @@ pub mod type_ {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -8008,12 +8161,15 @@ pub mod type_ {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -8620,12 +8776,15 @@ pub mod type_ {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -8664,12 +8823,15 @@ pub mod type_ {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -8757,12 +8919,15 @@ pub mod type_ {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -8939,12 +9104,15 @@ pub mod type_ {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -8983,12 +9151,15 @@ pub mod type_ {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9080,12 +9251,15 @@ pub mod type_ {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9285,12 +9459,15 @@ pub mod type_ {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -9329,12 +9506,15 @@ pub mod type_ {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9426,12 +9606,15 @@ pub mod type_ {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9632,12 +9815,15 @@ pub mod type_ {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -9676,12 +9862,15 @@ pub mod type_ {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9773,12 +9962,15 @@ pub mod type_ {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -9981,12 +10173,15 @@ pub mod type_ {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -10025,12 +10220,15 @@ pub mod type_ {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -10116,12 +10314,15 @@ pub mod type_ {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -10331,12 +10532,13 @@ pub mod type_ {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -10377,12 +10579,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -10471,12 +10674,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -10714,12 +10918,13 @@ pub mod type_ {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -10760,12 +10965,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -10852,12 +11058,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -11040,12 +11247,13 @@ pub mod type_ {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -11086,12 +11294,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -11174,12 +11383,13 @@ pub mod type_ {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -11339,12 +11549,15 @@ pub mod brand {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -11383,12 +11596,15 @@ pub mod brand {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -11479,12 +11695,15 @@ pub mod brand {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -11667,12 +11886,15 @@ pub mod brand {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -11711,12 +11933,15 @@ pub mod brand {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -11817,12 +12042,15 @@ pub mod brand {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -12078,12 +12306,15 @@ pub mod brand {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -12122,12 +12353,15 @@ pub mod brand {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -12224,12 +12458,15 @@ pub mod brand {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -12446,12 +12683,15 @@ pub mod value {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -12490,12 +12730,15 @@ pub mod value {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -12648,12 +12891,15 @@ pub mod value {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -13347,12 +13593,15 @@ pub mod annotation {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -13391,12 +13640,15 @@ pub mod annotation {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -13499,12 +13751,15 @@ pub mod annotation {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -13882,12 +14137,15 @@ pub mod capnp_version {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -13926,12 +14184,15 @@ pub mod capnp_version {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -14020,12 +14281,15 @@ pub mod capnp_version {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -14225,12 +14489,15 @@ pub mod code_generator_request {
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
         fn introspect() -> crate::introspect::Type {
-            crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                generic: &_private::RAW_SCHEMA,
-                field_types: _private::get_field_types,
-                annotation_types: _private::get_annotation_types,
-                type_id: ::core::any::TypeId::of::<Owned>(),
-            })
+            crate::introspect::TypeVariant::Struct(
+                crate::introspect::RawBrandedStructSchema::compiled(
+                    &_private::RAW_SCHEMA,
+                    _private::get_field_types,
+                    _private::get_annotation_types,
+                    crate::introspect::no_brand_bindings,
+                    ::core::any::TypeId::of::<Owned>(),
+                ),
+            )
             .into()
         }
     }
@@ -14269,12 +14536,15 @@ pub mod code_generator_request {
         fn from(reader: Reader<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Reader::new(
                 reader.reader,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -14411,12 +14681,15 @@ pub mod code_generator_request {
         fn from(builder: Builder<'a>) -> Self {
             Self::Struct(crate::dynamic_struct::Builder::new(
                 builder.builder,
-                crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                }),
+                crate::schema::StructSchema::new(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                ),
             ))
         }
     }
@@ -14772,12 +15045,15 @@ pub mod code_generator_request {
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
             fn introspect() -> crate::introspect::Type {
-                crate::introspect::TypeVariant::Struct(crate::introspect::RawBrandedStructSchema {
-                    generic: &_private::RAW_SCHEMA,
-                    field_types: _private::get_field_types,
-                    annotation_types: _private::get_annotation_types,
-                    type_id: ::core::any::TypeId::of::<Owned>(),
-                })
+                crate::introspect::TypeVariant::Struct(
+                    crate::introspect::RawBrandedStructSchema::compiled(
+                        &_private::RAW_SCHEMA,
+                        _private::get_field_types,
+                        _private::get_annotation_types,
+                        crate::introspect::no_brand_bindings,
+                        ::core::any::TypeId::of::<Owned>(),
+                    ),
+                )
                 .into()
             }
         }
@@ -14816,12 +15092,15 @@ pub mod code_generator_request {
             fn from(reader: Reader<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Reader::new(
                     reader.reader,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -14942,12 +15221,15 @@ pub mod code_generator_request {
             fn from(builder: Builder<'a>) -> Self {
                 Self::Struct(crate::dynamic_struct::Builder::new(
                     builder.builder,
-                    crate::schema::StructSchema::new(crate::introspect::RawBrandedStructSchema {
-                        generic: &_private::RAW_SCHEMA,
-                        field_types: _private::get_field_types,
-                        annotation_types: _private::get_annotation_types,
-                        type_id: ::core::any::TypeId::of::<Owned>(),
-                    }),
+                    crate::schema::StructSchema::new(
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
+                    ),
                 ))
             }
         }
@@ -15273,12 +15555,13 @@ pub mod code_generator_request {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -15319,12 +15602,13 @@ pub mod code_generator_request {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -15418,12 +15702,13 @@ pub mod code_generator_request {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -15627,12 +15912,13 @@ pub mod code_generator_request {
             impl crate::introspect::Introspect for Owned {
                 fn introspect() -> crate::introspect::Type {
                     crate::introspect::TypeVariant::Struct(
-                        crate::introspect::RawBrandedStructSchema {
-                            generic: &_private::RAW_SCHEMA,
-                            field_types: _private::get_field_types,
-                            annotation_types: _private::get_annotation_types,
-                            type_id: ::core::any::TypeId::of::<Owned>(),
-                        },
+                        crate::introspect::RawBrandedStructSchema::compiled(
+                            &_private::RAW_SCHEMA,
+                            _private::get_field_types,
+                            _private::get_annotation_types,
+                            crate::introspect::no_brand_bindings,
+                            ::core::any::TypeId::of::<Owned>(),
+                        ),
                     )
                     .into()
                 }
@@ -15673,12 +15959,13 @@ pub mod code_generator_request {
                     Self::Struct(crate::dynamic_struct::Reader::new(
                         reader.reader,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -15768,12 +16055,13 @@ pub mod code_generator_request {
                     Self::Struct(crate::dynamic_struct::Builder::new(
                         builder.builder,
                         crate::schema::StructSchema::new(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         ),
                     ))
                 }
@@ -15965,12 +16253,13 @@ pub mod code_generator_request {
                 impl crate::introspect::Introspect for Owned {
                     fn introspect() -> crate::introspect::Type {
                         crate::introspect::TypeVariant::Struct(
-                            crate::introspect::RawBrandedStructSchema {
-                                generic: &_private::RAW_SCHEMA,
-                                field_types: _private::get_field_types,
-                                annotation_types: _private::get_annotation_types,
-                                type_id: ::core::any::TypeId::of::<Owned>(),
-                            },
+                            crate::introspect::RawBrandedStructSchema::compiled(
+                                &_private::RAW_SCHEMA,
+                                _private::get_field_types,
+                                _private::get_annotation_types,
+                                crate::introspect::no_brand_bindings,
+                                ::core::any::TypeId::of::<Owned>(),
+                            ),
                         )
                         .into()
                     }
@@ -16011,12 +16300,13 @@ pub mod code_generator_request {
                         Self::Struct(crate::dynamic_struct::Reader::new(
                             reader.reader,
                             crate::schema::StructSchema::new(
-                                crate::introspect::RawBrandedStructSchema {
-                                    generic: &_private::RAW_SCHEMA,
-                                    field_types: _private::get_field_types,
-                                    annotation_types: _private::get_annotation_types,
-                                    type_id: ::core::any::TypeId::of::<Owned>(),
-                                },
+                                crate::introspect::RawBrandedStructSchema::compiled(
+                                    &_private::RAW_SCHEMA,
+                                    _private::get_field_types,
+                                    _private::get_annotation_types,
+                                    crate::introspect::no_brand_bindings,
+                                    ::core::any::TypeId::of::<Owned>(),
+                                ),
                             ),
                         ))
                     }
@@ -16120,12 +16410,13 @@ pub mod code_generator_request {
                         Self::Struct(crate::dynamic_struct::Builder::new(
                             builder.builder,
                             crate::schema::StructSchema::new(
-                                crate::introspect::RawBrandedStructSchema {
-                                    generic: &_private::RAW_SCHEMA,
-                                    field_types: _private::get_field_types,
-                                    annotation_types: _private::get_annotation_types,
-                                    type_id: ::core::any::TypeId::of::<Owned>(),
-                                },
+                                crate::introspect::RawBrandedStructSchema::compiled(
+                                    &_private::RAW_SCHEMA,
+                                    _private::get_field_types,
+                                    _private::get_annotation_types,
+                                    crate::introspect::no_brand_bindings,
+                                    ::core::any::TypeId::of::<Owned>(),
+                                ),
                             ),
                         ))
                     }
@@ -16372,12 +16663,13 @@ pub mod code_generator_request {
                     impl crate::introspect::Introspect for Owned {
                         fn introspect() -> crate::introspect::Type {
                             crate::introspect::TypeVariant::Struct(
-                                crate::introspect::RawBrandedStructSchema {
-                                    generic: &_private::RAW_SCHEMA,
-                                    field_types: _private::get_field_types,
-                                    annotation_types: _private::get_annotation_types,
-                                    type_id: ::core::any::TypeId::of::<Owned>(),
-                                },
+                                crate::introspect::RawBrandedStructSchema::compiled(
+                                    &_private::RAW_SCHEMA,
+                                    _private::get_field_types,
+                                    _private::get_annotation_types,
+                                    crate::introspect::no_brand_bindings,
+                                    ::core::any::TypeId::of::<Owned>(),
+                                ),
                             )
                             .into()
                         }
@@ -16418,12 +16710,13 @@ pub mod code_generator_request {
                             Self::Struct(crate::dynamic_struct::Reader::new(
                                 reader.reader,
                                 crate::schema::StructSchema::new(
-                                    crate::introspect::RawBrandedStructSchema {
-                                        generic: &_private::RAW_SCHEMA,
-                                        field_types: _private::get_field_types,
-                                        annotation_types: _private::get_annotation_types,
-                                        type_id: ::core::any::TypeId::of::<Owned>(),
-                                    },
+                                    crate::introspect::RawBrandedStructSchema::compiled(
+                                        &_private::RAW_SCHEMA,
+                                        _private::get_field_types,
+                                        _private::get_annotation_types,
+                                        crate::introspect::no_brand_bindings,
+                                        ::core::any::TypeId::of::<Owned>(),
+                                    ),
                                 ),
                             ))
                         }
@@ -16517,12 +16810,13 @@ pub mod code_generator_request {
                             Self::Struct(crate::dynamic_struct::Builder::new(
                                 builder.builder,
                                 crate::schema::StructSchema::new(
-                                    crate::introspect::RawBrandedStructSchema {
-                                        generic: &_private::RAW_SCHEMA,
-                                        field_types: _private::get_field_types,
-                                        annotation_types: _private::get_annotation_types,
-                                        type_id: ::core::any::TypeId::of::<Owned>(),
-                                    },
+                                    crate::introspect::RawBrandedStructSchema::compiled(
+                                        &_private::RAW_SCHEMA,
+                                        _private::get_field_types,
+                                        _private::get_annotation_types,
+                                        crate::introspect::no_brand_bindings,
+                                        ::core::any::TypeId::of::<Owned>(),
+                                    ),
                                 ),
                             ))
                         }
