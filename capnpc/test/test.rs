@@ -72,6 +72,9 @@ mod dynamic;
 mod newtype_evolution;
 
 #[cfg(test)]
+mod schema_loader;
+
+#[cfg(test)]
 mod tests {
     use crate::test_util::{CheckTestMessage, init_test_message};
     use capnp::message::ReaderOptions;

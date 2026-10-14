@@ -37,6 +37,21 @@ fn main() {
             .expect("compiling schema");
     }
 
+    // A schema only the runtime schema loader reads (see the file): dump its request without
+    // generating code.
+    let output = std::process::Command::new("capnp")
+        .args(["compile", "-o-", "test-schema-loader.capnp"])
+        .output()
+        .expect("running capnp compile");
+    assert!(
+        output.status.success(),
+        "capnp compile failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
+    std::fs::write(format!("{out_dir}/schema-loader.cgr"), output.stdout)
+        .expect("writing schema-loader.cgr");
+
     capnpc::CompilerCommand::new()
         .file("test-default-parent-module.capnp")
         .file("test-default-parent-module-override.capnp")
