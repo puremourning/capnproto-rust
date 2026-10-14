@@ -619,9 +619,7 @@ fn test_message_reader_get_root_as_dynamic() {
     let mut builder = message::Builder::new_default();
     test_util::init_test_message(builder.init_root());
     let words = serialize::write_message_to_words(&builder);
-    let reader =
-        serialize::read_message_from_flat_slice(&mut &words[..], message::ReaderOptions::new())
-            .unwrap();
+    let reader = serialize::read_message(&words[..], message::ReaderOptions::new()).unwrap();
     let dynamic = reader.get_root_as_dynamic(schema).unwrap();
     assert_eq!(dynamic.get_schema(), schema);
     assert_eq!(
@@ -639,9 +637,7 @@ fn test_message_reader_get_root_as_dynamic() {
     let mut builder = message::Builder::new_default();
     dynamic_init_typed(builder.init_root());
     let words = serialize::write_message_to_words(&builder);
-    let reader =
-        serialize::read_message_from_flat_slice(&mut &words[..], message::ReaderOptions::new())
-            .unwrap();
+    let reader = serialize::read_message(&words[..], message::ReaderOptions::new()).unwrap();
     let dynamic = reader.get_root_as_dynamic(schema).unwrap();
     test_util::dynamic_check_test_message(dynamic);
     let typed: test_all_types::Reader<'_> = reader.get_root().unwrap();
