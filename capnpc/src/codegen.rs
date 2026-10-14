@@ -23,6 +23,7 @@ use std::collections;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use capnp::private::newtype_layout;
 use capnp::schema_capnp;
 use capnp::Error;
 
@@ -2114,37 +2115,13 @@ fn generate_members_by_name(
     Ok(Branch(vec![Line(members_by_name_string)]))
 }
 
-// The `type` newtypes a field was declared with, nearest first. A field declared `corner
-// :ChainedPoint`, where `type ChainedPoint = Point` and `type Point = Vec3`, gives [ChainedPoint,
-// Point, Vec3]. Empty for a field not declared with a newtype. A group field records its newtype
-// in `Field.typeId`; a slot field in its type's `Type.typeId`. Each `type` node records the
-// newtype it aliases (if any) in its own `Type.typeId`, which is how the chain is followed. A
-// newtype whose node isn't in the request ends the chain there.
+// The `type` newtypes a field was declared with, nearest first; see
+// `capnp::private::newtype_layout::field_newtype_ids`.
 fn field_newtype_ids(
     ctx: &GeneratorContext,
     field: schema_capnp::field::Reader,
 ) -> ::capnp::Result<Vec<u64>> {
-    use capnp::schema_capnp::*;
-    let mut id = field.get_type_id();
-    if id == 0 {
-        if let field::Slot(slot) = field.which()? {
-            id = slot.get_type()?.get_type_id();
-        }
-    }
-    let mut ids = Vec::new();
-    // The schema compiler rejects alias cycles; the `contains` check only stops a malformed
-    // request from looping forever.
-    while id != 0 && !ids.contains(&id) {
-        ids.push(id);
-        let Some(node) = ctx.node_map.get(&id) else {
-            break;
-        };
-        let node::Type(Ok(t)) = node.which()? else {
-            break;
-        };
-        id = t.get_type_id();
-    }
-    Ok(ids)
+    newtype_layout::field_newtype_ids(&ctx.node_map, field)
 }
 
 // `FIELD_NEWTYPES`: for each field index, the newtype ids from `field_newtype_ids`. None (and
@@ -2275,37 +2252,16 @@ fn get_ty_params_of_brand_helper(
 // `type` node). We give such a newtype a semantic trait -- `vec3::Reader` -- so every use site
 // shares one name. Returns the template node's id when `alias_id` is an inline group/union
 // newtype, or a `type` aliasing one (`type Bar = Foo`), which shares Foo's template.
+//
+// These layout helpers live in `capnp::private::newtype_layout`, shared with the schema loader.
 fn newtype_template_id(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(alias) = ctx.node_map.get(&alias_id) else {
-        return Ok(None);
-    };
-    let node::Type(Ok(t)) = alias.which()? else {
-        return Ok(None);
-    };
-    let type_::Struct(st) = t.which()? else {
-        return Ok(None); // scalar newtype -- rendered via its underlying type
-    };
-    let template_id = st.get_type_id();
-    let Some(template) = ctx.node_map.get(&template_id) else {
-        return Ok(None);
-    };
-    if template.get_scope_id() != alias_id {
-        // Not this node's own template. Either it aliases another inline newtype (recorded as
-        // Type.typeId), whose template it shares, or it names a pre-existing struct.
-        let aliased = t.get_type_id();
-        if aliased != 0 {
-            return newtype_template_id(ctx, aliased);
-        }
-        return Ok(None);
-    }
-    Ok(Some(template_id))
+    newtype_layout::newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // The inline newtype owning `alias_id`'s template: `alias_id` itself, or for `type Bar = Foo`
 // (Foo an inline group/union newtype), Foo. None if `alias_id` isn't an inline newtype.
 fn inline_newtype_owner(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
-    Ok(newtype_template_id(ctx, alias_id)?.map(|t| ctx.node_map[&t].get_scope_id()))
+    newtype_layout::inline_newtype_owner(&ctx.node_map, alias_id)
 }
 
 // A non-union group newtype. Its fields are slots and/or nested-newtype members (group fields
@@ -2315,24 +2271,7 @@ fn group_newtype_template_id(
     ctx: &GeneratorContext,
     alias_id: u64,
 ) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
-        return Ok(None);
-    };
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(None);
-    };
-    if tmpl.get_discriminant_count() > 0 {
-        return Ok(None); // union newtype -- handled separately
-    }
-    for field in tmpl.get_fields()? {
-        if let field::Group(_) = field.which()? {
-            if field.get_type_id() == 0 {
-                return Ok(None); // anonymous group member -- not a newtype, deferred
-            }
-        }
-    }
-    Ok(Some(template_id))
+    newtype_layout::group_newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // A union newtype. Slot arms have use-site-independent `Which` payloads; a group arm is a nested
@@ -2341,24 +2280,7 @@ fn union_newtype_template_id(
     ctx: &GeneratorContext,
     alias_id: u64,
 ) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
-        return Ok(None);
-    };
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(None);
-    };
-    if tmpl.get_discriminant_count() == 0 {
-        return Ok(None); // not a union
-    }
-    for field in tmpl.get_fields()? {
-        if let field::Group(_) = field.which()? {
-            if field.get_type_id() == 0 {
-                return Ok(None); // anonymous group arm -- not a newtype, deferred
-            }
-        }
-    }
-    Ok(Some(template_id))
+    newtype_layout::union_newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // One method of a newtype's Reader/Builder trait: its signature (the text after `fn`) plus how a
@@ -2471,50 +2393,37 @@ fn generate_newtype_trait(
 // Whether a use site of `alias_id` gets a per-use-site table static and erased carriers: true for
 // a group or union newtype (or an alias of one).
 fn has_use_site_table(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<bool> {
-    Ok(group_newtype_template_id(ctx, alias_id)?.is_some()
-        || union_newtype_template_id(ctx, alias_id)?.is_some())
+    newtype_layout::has_use_site_table(&ctx.node_map, alias_id)
 }
 
 // The `static <NAME>_TABLE: UseSiteTable` for the use site `instance_id` of the newtype whose
-// template is `template_id`, emitted in the module of the instance's parent. Per the design, it has
-// one entry per field of the template, indexed by the field's position in the template's `fields`
-// list (stable under evolution). A slot maps to its offset, matched to the instance by name, or to
-// the sentinel when unmapped (an incomplete `@[...]`); a nested-newtype member refers to the nested
-// instance's own table, which its parent module (the instance's) emits.
+// template is `template_id`, emitted in the module of the instance's parent. The table itself is
+// computed by `newtype_layout::use_site_table`: one entry per field of the template, indexed by
+// the field's position in the template's `fields` list (stable under evolution). A slot maps to
+// its offset, or to the sentinel when unmapped (an incomplete `@[...]`); a nested-newtype member
+// refers to the nested instance's own table, which its parent module (the instance's) emits.
 fn use_site_table_static(
     ctx: &GeneratorContext,
     template_id: u64,
     instance_id: u64,
 ) -> ::capnp::Result<FormattedText> {
-    use capnp::schema_capnp::*;
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+    let Some(table) = newtype_layout::use_site_table(&ctx.node_map, template_id, instance_id)?
+    else {
         return Ok(Branch(vec![]));
     };
-    let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
-        return Ok(Branch(vec![]));
-    };
-    let mut inst_fields = ::std::collections::HashMap::new();
-    for f in instance.get_fields()? {
-        inst_fields.insert(f.get_name()?.to_str()?.to_string(), f);
-    }
-    let unmapped = fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset(0xffff_ffff)");
     let mut entries = Vec::new();
-    for field in tmpl.get_fields()? {
-        let raw = field.get_name()?.to_str()?;
-        let inst = inst_fields.get(raw).map(|f| f.which());
-        let entry = match (field.which()?, inst) {
-            (field::Slot(_), Some(Ok(field::Slot(s)))) => fmt!(
-                ctx,
-                "{capnp}::traits::UseSiteEntry::Offset({})",
-                s.get_offset()
-            ),
-            (field::Slot(_), _) => unmapped.clone(),
-            (field::Group(_), inst) => {
-                let child = match inst {
-                    Some(Ok(field::Group(ig))) if has_use_site_table(ctx, field.get_type_id())? => {
-                        use_site_table_path(ctx, instance_id, ig.get_type_id())?
-                    }
-                    _ => fmt!(ctx, "{capnp}::traits::EMPTY_USE_SITE_TABLE"),
+    for entry in &table.entries {
+        let entry = match entry {
+            newtype_layout::LayoutEntry::Offset(capnp::traits::UNMAPPED) => {
+                fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset(0xffff_ffff)")
+            }
+            newtype_layout::LayoutEntry::Offset(offset) => {
+                fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset({offset})")
+            }
+            newtype_layout::LayoutEntry::Nested(nested) => {
+                let child = match nested {
+                    Some(nested) => use_site_table_path(ctx, instance_id, nested.group_id)?,
+                    None => fmt!(ctx, "{capnp}::traits::EMPTY_USE_SITE_TABLE"),
                 };
                 fmt!(ctx, "{capnp}::traits::UseSiteEntry::Nested(&{child})")
             }
@@ -2526,7 +2435,7 @@ fn use_site_table_static(
         ctx,
         "pub(crate) static {name}: {capnp}::traits::UseSiteTable<'static> = {capnp}::traits::UseSiteTable {{ entries: &[{}], discriminant_offset: {} }};",
         entries.join(", "),
-        instance.get_discriminant_offset()
+        table.discriminant_offset
     )))
 }
 
@@ -3015,48 +2924,21 @@ fn any_downcast_impls(
 // For a group that is a use site of a group or union newtype, the `.with_any_layout(..)` call that
 // records the newtype ids and use-site table on its `RAW_SCHEMA`, so the dynamic API can downcast
 // it. The table is the one the parent's module already emits for `as_any()` (named by
-// `use_site_table_path`). None for any
+// `use_site_table_path`); its contents come from `newtype_layout::use_site_layout`. None for any
 // other node.
 fn use_site_any_layout(
     ctx: &GeneratorContext,
     node: schema_capnp::node::Reader,
 ) -> ::capnp::Result<Option<String>> {
-    use capnp::schema_capnp::*;
-    let node::Struct(instance) = node.which()? else {
+    let Some(layout) = newtype_layout::use_site_layout(&ctx.node_map, node)? else {
         return Ok(None);
     };
-    if !instance.get_is_group() {
-        return Ok(None);
-    }
-    let id = node.get_id();
-    let Some(parent) = ctx.node_map.get(&node.get_scope_id()) else {
-        return Ok(None);
-    };
-    let node::Struct(parent_struct) = parent.which()? else {
-        return Ok(None);
-    };
-    for field in parent_struct.get_fields()? {
-        let field::Group(group) = field.which()? else {
-            continue;
-        };
-        if group.get_type_id() != id || field.get_type_id() == 0 {
-            continue;
-        }
-        let alias_id = field.get_type_id();
-        if !has_use_site_table(ctx, alias_id)? {
-            return Ok(None);
-        }
-        let ids: Vec<String> = field_newtype_ids(ctx, field)?
-            .into_iter()
-            .map(format_u64)
-            .collect();
-        let table = use_site_table_path(ctx, node.get_scope_id(), id)?;
-        return Ok(Some(format!(
-            ".with_any_layout(&[{}], &{table})",
-            ids.join(", ")
-        )));
-    }
-    Ok(None)
+    let ids: Vec<String> = layout.newtype_ids.into_iter().map(format_u64).collect();
+    let table = use_site_table_path(ctx, node.get_scope_id(), node.get_id())?;
+    Ok(Some(format!(
+        ".with_any_layout(&[{}], &{table})",
+        ids.join(", ")
+    )))
 }
 
 // The path of the `*_TABLE` static for the use-site group `instance_id`, emitted in the module of
