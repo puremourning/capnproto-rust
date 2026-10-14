@@ -528,3 +528,42 @@ Deliver this as `example/dynamic-dump` (reads an `Envelope` + CGR file, prints t
   are reachable only through `get_node`. No dynamic RPC.
 - **no_std:** the loader and the `Loaded` variant are `std`-only.
 - **Memory:** leaking is accepted, with content dedup (§3).
+
+## Status (2026-10-15)
+
+All work-plan steps are implemented on branch `schema-loader`:
+
+| Step | Commits |
+|---|---|
+| 1, 1b: brand sum type, compiled brand bindings | c0621343, b9e1c8a7 |
+| 2: dynamic entry points | df8e7127, c5dd794b |
+| 6b (codegen half): `capnp::private::newtype_layout` | 592f20ae |
+| 3–6, 6b (loader half): `SchemaLoader` | d7d3d292, 27ddc040 |
+| 7: `load_compiled`, `Type::usable_as`, `try_downcast` | 0b004e0f, 44e8485e |
+| 8: `example/dynamic-dump`, docs, changelogs | 1f1f3662, 1e0d25f7 |
+| codegen `MEMBERS_BY_NAME` sorted by schema name (found by the loader) | e05eda64 |
+
+Deviations from the design above:
+- `init_dynamic` / `init_root_dynamic` return `Result`, because a malformed loaded schema must not panic there.
+- `StructBrand::Loaded` holds a `BrandRef` (a `NonNull` wrapper around a never-freed
+  `&'static LoadedBrand`). Holding the reference directly would trip clippy's
+  `mutable_key_type` on every `HashMap<Field, _>`.
+- Leaked loader memory stays reachable through a process-wide registry of loaders, so Miri
+  sees no leaks. A failed batch leaks nothing.
+- Compiled `StructSchema`/`Field` were never `Send + Sync`, because they hold a `node::Reader`.
+  The `Send + Sync` assertion therefore covers `SchemaLoader`, `Type` and the raw schemas.
+- `Type::usable_as` is public, since list downcasts have no fallible variant. A downcast
+  requires `load_compiled::<T>()` first, as in C++.
+- `Deferred` field types cover any non-default instantiation not yet interned, not only
+  polymorphic recursion.
+
+Known gaps:
+- Compatibility means identical canonical node bytes. There is no C++-style `CompatibilityChecker`.
+- `load_compiled` can't insert compiled nodes that refer to annotation, `type` or interface
+  nodes generated code doesn't carry. Load those from a CGR first, or it returns `Err`.
+- `dynamic_list`'s set-struct check still uses `==`.
+- A generic field bound to an interface reads as `FieldAndDefaultMismatch`. That limitation of the
+  dynamic API predates the loader and applies to compiled schemas too.
+- Annotation values aren't type-checked at load. A mismatch surfaces as `TypeMismatch` from
+  `get_value`.
+- Changelogs say "Unreleased". This is a breaking release, so it should probably be 0.28.0.
