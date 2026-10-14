@@ -13,10 +13,8 @@ jobs:
       - name: checkout source
         uses: actions/checkout@v7
 
-      - name: Install Cap'n Proto
-        run: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get install -y capnproto libcapnp-dev
+      - name: Install Cap'n Proto (newtype)
+        uses: ./.github/actions/install-capnp
 
       - uses: dtolnay/rust-toolchain@nightly
 
