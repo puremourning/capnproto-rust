@@ -1,3 +1,6 @@
+## v0.27.4
+- In dynamic API, all downcasting newtypes to their AnyReader/AnyBuilder
+
 ## v0.27.3
 - Add `schema::Field::get_newtype_ids()`: the `type` newtypes a field was declared
   with, nearest first, so code can recognise a newtype field at runtime.

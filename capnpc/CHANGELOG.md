@@ -1,3 +1,6 @@
+## v0.27.2
+- Fix bug where newtypes in generic structs did not include their generic types
+
 ## v0.27.1
 - Emit `pub const TYPE_ID` in every `type` newtype's module (alias modules included).
 - Record each field's newtype ids in the struct schema, for
