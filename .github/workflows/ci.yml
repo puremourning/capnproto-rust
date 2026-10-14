@@ -49,6 +49,14 @@ jobs:
     - name: Run example
       run: ./target/debug/addressbook write | ./target/debug/addressbook read
 
+    - name: Run dynamic-dump example
+      # `shell: bash` adds pipefail, so a failing writer fails the step.
+      shell: bash
+      run: |
+          ./target/debug/dynamic-dump write | ./target/debug/dynamic-dump read
+          capnp compile -o- example/dynamic-dump/payload.capnp > target/payload.cgr
+          ./target/debug/dynamic-dump write --no-schema | ./target/debug/dynamic-dump read target/payload.cgr
+
     - name: Build in release mode
       run: cargo build --all --release
 

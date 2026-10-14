@@ -1,0 +1,23 @@
+[package]
+
+name = "dynamic-dump"
+version = "0.0.0"
+edition = "2021"
+build = "build.rs"
+publish = false
+
+[[bin]]
+
+name = "dynamic-dump"
+path = "dynamic-dump.rs"
+
+[build-dependencies.capnpc]
+path = "../../capnpc"
+package = "capnpc-newtype"
+
+[dependencies.capnp]
+path = "../../capnp"
+package = "capnp-newtype"
+
+[lints]
+workspace = true
