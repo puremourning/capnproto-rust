@@ -2094,11 +2094,12 @@ fn generate_members_by_name(
         _ => return Err(Error::failed("not a struct".into())),
     };
 
+    // Sorted by the *schema* name, not the `$Rust.name` annotation: this table backs
+    // `StructSchema::find_field_by_name`, which binary-searches by `Field::get_proto().get_name()`
+    // (as does the runtime `SchemaLoader`).
     let mut members_by_name = Vec::new();
     for (index, field) in st.get_fields()?.iter().enumerate() {
-        if let Ok(name) = get_field_name(field) {
-            members_by_name.push((name, index));
-        }
+        members_by_name.push((field.get_name()?.to_str()?, index));
     }
     members_by_name.sort_by_key(|k| k.0);
 

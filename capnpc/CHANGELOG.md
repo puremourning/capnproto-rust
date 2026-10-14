@@ -1,3 +1,11 @@
+## Unreleased
+Requires the matching (unreleased) capnp-newtype; regenerate existing generated code.
+- Build struct schemas with `RawBrandedStructSchema::compiled(..)`, and emit
+  `get_brand_binding` for generic structs.
+- Emit a per-level `UseSiteTable` for each newtype use site, replacing `*_OFFSETS` slices.
+- Fix `MEMBERS_BY_NAME` being sorted by the `$Rust.name` annotation instead of the schema
+  name, which broke `StructSchema::find_field_by_name()` for renamed fields.
+
 ## v0.27.2
 - Fix bug where newtypes in generic structs did not include their generic types
 

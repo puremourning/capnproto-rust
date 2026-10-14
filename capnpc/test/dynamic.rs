@@ -781,3 +781,73 @@ fn test_any_pointer_get_as_dynamic_not_a_struct() {
         .is_err());
     assert!(root.get_any_pointer_field().get_as_dynamic(schema).is_err());
 }
+
+#[test]
+fn find_field_by_name_uses_schema_names() {
+    // `MEMBERS_BY_NAME` must be sorted by the schema name (what `find_field_by_name` searches),
+    // not by the `$Rust.name` annotation.
+    use crate::test_capnp::renamed_struct;
+    use capnp::introspect::{Introspect, TypeVariant};
+    use capnp::schema::{EnumSchema, StructSchema};
+
+    fn check(schema: StructSchema, visited: &mut Vec<u64>) {
+        let id = schema.get_proto().get_id();
+        if visited.contains(&id) {
+            return;
+        }
+        visited.push(id);
+        for field in schema.get_fields().unwrap() {
+            let name = field.get_proto().get_name().unwrap().to_str().unwrap();
+            assert_eq!(
+                schema.find_field_by_name(name).unwrap(),
+                Some(field),
+                "{name}"
+            );
+            if let TypeVariant::Struct(st) = field.get_type().which() {
+                check(st.into(), visited);
+            }
+        }
+    }
+
+    let TypeVariant::Struct(st) = renamed_struct::Owned::introspect().which() else {
+        panic!("not a struct");
+    };
+    let schema: StructSchema = st.into();
+    let mut visited = Vec::new();
+    check(schema, &mut visited);
+    // RenamedStruct, renamedUnion, renamedGroup and RenamedNestedStruct.
+    assert_eq!(visited.len(), 4);
+
+    // `$Rust.name`s are not schema names.
+    for rust_name in ["goodFieldName", "anotherGoodFieldName", "renamedUnion"] {
+        assert!(schema.find_field_by_name(rust_name).unwrap().is_none());
+    }
+    let TypeVariant::Struct(st) = schema
+        .get_field_by_name("badlyNamedUnion")
+        .unwrap()
+        .get_type()
+        .which()
+    else {
+        panic!("not a group");
+    };
+    let union_schema: StructSchema = st.into();
+    assert!(union_schema.find_field_by_name("qux").unwrap().is_none());
+    assert!(union_schema.find_field_by_name("baz").unwrap().is_some());
+
+    // Enumerants of the renamed enum keep their schema names too.
+    let TypeVariant::Enum(e) = schema
+        .get_field_by_name("anotherBadFieldName")
+        .unwrap()
+        .get_type()
+        .which()
+    else {
+        panic!("not an enum");
+    };
+    let names: Vec<&str> = EnumSchema::new(e)
+        .get_enumerants()
+        .unwrap()
+        .iter()
+        .map(|e| e.get_proto().get_name().unwrap().to_str().unwrap())
+        .collect();
+    assert_eq!(names, ["foo", "bar", "baz"]);
+}
