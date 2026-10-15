@@ -91,6 +91,8 @@ mod side {
 }
 
 pub mod vat_id {
+    pub const TYPE_ID: u64 = 0xd20b_909f_ee73_3a8e;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
@@ -399,6 +401,8 @@ pub mod vat_id {
 }
 
 pub mod provision_id {
+    pub const TYPE_ID: u64 = 0xb88d_09a9_c5f3_9817;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
@@ -700,6 +704,8 @@ pub mod provision_id {
 }
 
 pub mod recipient_id {
+    pub const TYPE_ID: u64 = 0x89f3_89b6_fd40_82c1;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
@@ -968,6 +974,8 @@ pub mod recipient_id {
 }
 
 pub mod third_party_cap_id {
+    pub const TYPE_ID: u64 = 0xb47f_4979_672c_b59d;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
@@ -1237,6 +1245,8 @@ pub mod third_party_cap_id {
 }
 
 pub mod join_key_part {
+    pub const TYPE_ID: u64 = 0x95b2_9059_097f_ca83;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {
@@ -1599,6 +1609,8 @@ pub mod join_key_part {
 }
 
 pub mod join_result {
+    pub const TYPE_ID: u64 = 0x9d26_3a36_30b7_ebee;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl ::capnp::introspect::Introspect for Owned {

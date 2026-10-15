@@ -7,6 +7,8 @@
 pub mod node {
     pub use self::Which::{Annotation, Const, Enum, File, Interface, Struct, Type};
 
+    pub const TYPE_ID: u64 = 0xe682_ab4c_f923_a417;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -972,6 +974,8 @@ pub mod node {
     >;
 
     pub mod parameter {
+        pub const TYPE_ID: u64 = 0xb952_1bcc_f10f_a3b1;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -1292,6 +1296,8 @@ pub mod node {
     }
 
     pub mod nested_node {
+        pub const TYPE_ID: u64 = 0xdebf_55bb_fa0f_c242;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -1642,6 +1648,8 @@ pub mod node {
     }
 
     pub mod source_info {
+        pub const TYPE_ID: u64 = 0xf38e_1de3_0413_57ae;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -2147,6 +2155,8 @@ pub mod node {
         }
 
         pub mod member {
+            pub const TYPE_ID: u64 = 0xc2ba_9038_898e_1fa2;
+
             #[derive(Copy, Clone)]
             pub struct Owned(());
             impl crate::introspect::Introspect for Owned {
@@ -2476,6 +2486,8 @@ pub mod node {
     }
 
     pub mod struct_ {
+        pub const TYPE_ID: u64 = 0x9ea0_b19b_37fb_4435;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -3008,6 +3020,8 @@ pub mod node {
     }
 
     pub mod enum_ {
+        pub const TYPE_ID: u64 = 0xb54a_b336_4333_f598;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -3347,6 +3361,8 @@ pub mod node {
     }
 
     pub mod interface {
+        pub const TYPE_ID: u64 = 0xe827_53cf_f0c2_218f;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -3760,6 +3776,8 @@ pub mod node {
     }
 
     pub mod const_ {
+        pub const TYPE_ID: u64 = 0xb18a_a5ac_7a0d_9420;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -4148,6 +4166,8 @@ pub mod node {
     }
 
     pub mod annotation {
+        pub const TYPE_ID: u64 = 0xec16_19d4_400a_0290;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -4855,6 +4875,8 @@ pub mod node {
 pub mod field {
     pub use self::Which::{Group, Slot};
 
+    pub const TYPE_ID: u64 = 0x9aad_50a4_1f4a_f45f;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -5429,6 +5451,8 @@ pub mod field {
     pub const NO_DISCRIMINANT: u16 = 65535;
 
     pub mod slot {
+        pub const TYPE_ID: u64 = 0xc423_0547_6bb4_746f;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -5884,6 +5908,8 @@ pub mod field {
     }
 
     pub mod group {
+        pub const TYPE_ID: u64 = 0xcafc_cddb_68db_1d11;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -6181,6 +6207,8 @@ pub mod field {
 
     pub mod ordinal {
         pub use self::Which::{Explicit, Implicit};
+
+        pub const TYPE_ID: u64 = 0xbb90_d5c2_8787_0be6;
 
         #[derive(Copy, Clone)]
         pub struct Owned(());
@@ -6520,6 +6548,8 @@ pub mod field {
 }
 
 pub mod enumerant {
+    pub const TYPE_ID: u64 = 0x978a_7ceb_dc54_9a4d;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -6937,6 +6967,8 @@ pub mod enumerant {
 }
 
 pub mod superclass {
+    pub const TYPE_ID: u64 = 0xa996_2a9e_d0a4_d7f8;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -7292,6 +7324,8 @@ pub mod superclass {
 }
 
 pub mod method {
+    pub const TYPE_ID: u64 = 0x9500_cce2_3b33_4d80;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -7968,6 +8002,8 @@ pub mod type_ {
         AnyPointer, Bool, Data, Enum, Float32, Float64, Int16, Int32, Int64, Int8, Interface, List,
         Struct, Text, Uint16, Uint32, Uint64, Uint8, Void,
     };
+
+    pub const TYPE_ID: u64 = 0xd073_78ed_e1f9_cc60;
 
     #[derive(Copy, Clone)]
     pub struct Owned(());
@@ -8747,6 +8783,8 @@ pub mod type_ {
     >;
 
     pub mod list {
+        pub const TYPE_ID: u64 = 0x87e7_3925_0a60_ea97;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -9077,6 +9115,8 @@ pub mod type_ {
     }
 
     pub mod enum_ {
+        pub const TYPE_ID: u64 = 0x9e0e_7871_1a7f_87a9;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -9434,6 +9474,8 @@ pub mod type_ {
     }
 
     pub mod struct_ {
+        pub const TYPE_ID: u64 = 0xac3a_6f60_ef4c_c6d3;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -9792,6 +9834,8 @@ pub mod type_ {
     }
 
     pub mod interface {
+        pub const TYPE_ID: u64 = 0xed8b_ca69_f7fb_0cbf;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -10152,6 +10196,8 @@ pub mod type_ {
     pub mod any_pointer {
         pub use self::Which::{ImplicitMethodParameter, Parameter, Unconstrained};
 
+        pub const TYPE_ID: u64 = 0xc257_3fe8_a23e_49f1;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -10511,6 +10557,8 @@ pub mod type_ {
 
         pub mod unconstrained {
             pub use self::Which::{AnyKind, Capability, List, Struct};
+
+            pub const TYPE_ID: u64 = 0x8e3b_5f79_fe59_3656;
 
             #[derive(Copy, Clone)]
             pub struct Owned(());
@@ -10900,6 +10948,8 @@ pub mod type_ {
         }
 
         pub mod parameter {
+            pub const TYPE_ID: u64 = 0x9dd1_f724_f461_4a85;
+
             #[derive(Copy, Clone)]
             pub struct Owned(());
             impl crate::introspect::Introspect for Owned {
@@ -11231,6 +11281,8 @@ pub mod type_ {
         }
 
         pub mod implicit_method_parameter {
+            pub const TYPE_ID: u64 = 0xbaef_c912_0c56_e274;
+
             #[derive(Copy, Clone)]
             pub struct Owned(());
             impl crate::introspect::Introspect for Owned {
@@ -11536,6 +11588,8 @@ pub mod type_ {
 }
 
 pub mod brand {
+    pub const TYPE_ID: u64 = 0x9034_55f0_6065_422b;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -11874,6 +11928,8 @@ pub mod brand {
 
     pub mod scope {
         pub use self::Which::{Bind, Inherit};
+
+        pub const TYPE_ID: u64 = 0xabd7_3485_a963_6bc9;
 
         #[derive(Copy, Clone)]
         pub struct Owned(());
@@ -12297,6 +12353,8 @@ pub mod brand {
     pub mod binding {
         pub use self::Which::{Type, Unbound};
 
+        pub const TYPE_ID: u64 = 0xc863_cd16_969e_e7fc;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -12675,6 +12733,8 @@ pub mod value {
         AnyPointer, Bool, Data, Enum, Float32, Float64, Int16, Int32, Int64, Int8, Interface, List,
         Struct, Text, Uint16, Uint32, Uint64, Uint8, Void,
     };
+
+    pub const TYPE_ID: u64 = 0xce23_dcd2_d7b0_0c9b;
 
     #[derive(Copy, Clone)]
     pub struct Owned(());
@@ -13588,6 +13648,8 @@ pub mod value {
 }
 
 pub mod annotation {
+    pub const TYPE_ID: u64 = 0xf1c8_950d_ab25_7542;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -14134,6 +14196,8 @@ mod element_size {
 }
 
 pub mod capnp_version {
+    pub const TYPE_ID: u64 = 0xd85d_305b_7d83_9963;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -14488,6 +14552,8 @@ pub mod capnp_version {
 }
 
 pub mod code_generator_request {
+    pub const TYPE_ID: u64 = 0xbfc5_46f6_210a_d7ce;
+
     #[derive(Copy, Clone)]
     pub struct Owned(());
     impl crate::introspect::Introspect for Owned {
@@ -15046,6 +15112,8 @@ pub mod code_generator_request {
     }
 
     pub mod requested_file {
+        pub const TYPE_ID: u64 = 0xcfea_0eb0_2e81_0062;
+
         #[derive(Copy, Clone)]
         pub struct Owned(());
         impl crate::introspect::Introspect for Owned {
@@ -15557,6 +15625,8 @@ pub mod code_generator_request {
         }
 
         pub mod import {
+            pub const TYPE_ID: u64 = 0xae50_4193_1223_57e5;
+
             #[derive(Copy, Clone)]
             pub struct Owned(());
             impl crate::introspect::Introspect for Owned {
@@ -15916,6 +15986,8 @@ pub mod code_generator_request {
         }
 
         pub mod file_source_info {
+            pub const TYPE_ID: u64 = 0xf8ea_2bf1_7692_5da0;
+
             #[derive(Copy, Clone)]
             pub struct Owned(());
             impl crate::introspect::Introspect for Owned {
@@ -16258,6 +16330,8 @@ pub mod code_generator_request {
 
             pub mod identifier {
                 pub use self::Which::{Member, TypeId};
+
+                pub const TYPE_ID: u64 = 0xdda7_1989_2e04_99bb;
 
                 #[derive(Copy, Clone)]
                 pub struct Owned(());
@@ -16671,6 +16745,8 @@ pub mod code_generator_request {
                 pub type WhichBuilder<'a,> = Which<crate::schema_capnp::code_generator_request::requested_file::file_source_info::identifier::member::Builder<'a>>;
 
                 pub mod member {
+                    pub const TYPE_ID: u64 = 0xfc69_d5e1_d630_a151;
+
                     #[derive(Copy, Clone)]
                     pub struct Owned(());
                     impl crate::introspect::Introspect for Owned {

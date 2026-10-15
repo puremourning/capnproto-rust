@@ -441,14 +441,38 @@ fn downcast_of_loaded_struct_to_compiled_type_panics() {
 }
 
 #[test]
+fn generated_type_id_consts() {
+    use capnp::traits::HasTypeId;
+    // Every struct (generic and group too) and interface module has its node's id as `TYPE_ID`.
+    assert_eq!(test_all_types::TYPE_ID, id_of::<test_all_types::Owned>());
+    assert_eq!(
+        test_all_types::TYPE_ID,
+        <test_all_types::Reader<'static> as HasTypeId>::TYPE_ID
+    );
+    assert_eq!(
+        test_generics::TYPE_ID,
+        <test_generics::Reader<'static, text::Owned, data::Owned> as HasTypeId>::TYPE_ID
+    );
+    assert_eq!(
+        test_groups::groups::foo::TYPE_ID,
+        id_of::<test_groups::groups::foo::Owned>()
+    );
+    assert_eq!(
+        test_interface::TYPE_ID,
+        <test_interface::Client as HasTypeId>::TYPE_ID
+    );
+    // They are consts, so a table of them can be static.
+    static IDS: [u64; 2] = [test_all_types::TYPE_ID, test_union::TYPE_ID];
+    for id in IDS {
+        assert_eq!(loader().get_struct(id).unwrap().get_proto().get_id(), id);
+    }
+}
+
+#[test]
 fn other_node_kinds() {
-    let interface = loader()
-        .get_node(<test_interface::Client as capnp::traits::HasTypeId>::TYPE_ID)
-        .unwrap();
+    let interface = loader().get_node(test_interface::TYPE_ID).unwrap();
     assert!(matches!(interface.which().unwrap(), node::Interface(_)));
-    assert!(loader()
-        .get_struct(<test_interface::Client as capnp::traits::HasTypeId>::TYPE_ID)
-        .is_err());
+    assert!(loader().get_struct(test_interface::TYPE_ID).is_err());
     assert!(loader().get_enum(id_of::<test_all_types::Owned>()).is_err());
     let ann = loader().get_node(test_generics::ann::ID).unwrap();
     assert!(matches!(ann.which().unwrap(), node::Annotation(_)));
@@ -948,7 +972,7 @@ fn interfaces_and_implicit_parameters() {
     // `call @0 [T, U] (foo :T, bar :U) -> TestGenerics(T, U)`: implicit method parameters are
     // `AnyPointer`.
     let interface = loader()
-        .get_node(<test_implicit_method_params::Client as capnp::traits::HasTypeId>::TYPE_ID)
+        .get_node(test_implicit_method_params::TYPE_ID)
         .unwrap();
     let node::Interface(interface) = interface.which().unwrap() else {
         panic!("not an interface")

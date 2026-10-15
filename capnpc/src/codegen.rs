@@ -2354,11 +2354,12 @@ fn newtype_trait_methods(
     Ok(methods)
 }
 
-// The id of a `type` newtype's node, as `pub const TYPE_ID` in its module. An alias module
+// The node's id, as `pub const TYPE_ID` in the module of every struct, interface and `type`
+// newtype. It is the id the schema (and a `SchemaLoader`) knows the node by. An alias module
 // (`type Bar = Foo`) declares its own, which takes precedence over the one its `pub use` of
-// Foo's module brings in, so each name reports its own id. It is what
+// Foo's module brings in, so each name reports its own id. For a newtype it is what
 // `schema::Field::get_newtype_ids` returns, so code can recognise a newtype at runtime.
-fn newtype_type_id_line(node_id: u64) -> FormattedText {
+fn type_id_line(node_id: u64) -> FormattedText {
     Line(format!("pub const TYPE_ID: u64 = {};", format_u64(node_id)))
 }
 
@@ -2380,7 +2381,7 @@ fn generate_newtype_trait(
                     "pub use {}::*;",
                     ctx.get_qualified_module(owner)
                 ))),
-                indent(newtype_type_id_line(node_id)),
+                indent(type_id_line(node_id)),
                 line("}"),
             ]));
         }
@@ -3021,7 +3022,7 @@ fn generate_group_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3315,7 +3316,7 @@ fn generate_union_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3500,7 +3501,7 @@ fn generate_scalar_newtype_alias(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {module} {{")),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(items),
         line("}"),
     ]))
@@ -3730,6 +3731,7 @@ fn generate_node(
                 "pub(crate) const TYPE_ID: u64 = {};",
                 format_u64(node_id)
             )));
+            preamble.push(Branch(vec![type_id_line(node_id), BlankLine]));
 
             let from_pointer_builder_impl =
                 Branch(vec![
@@ -4122,6 +4124,7 @@ fn generate_node(
             )));
 
             mod_interior.push(line("#![allow(unused_variables)]"));
+            mod_interior.push(type_id_line(node_id));
 
             let methods = interface.get_methods()?;
             for (ordinal, method) in methods.into_iter().enumerate() {
