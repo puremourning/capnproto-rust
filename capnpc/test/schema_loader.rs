@@ -23,6 +23,11 @@
 //! time describe the same structure as the compiled-in ones, and the dynamic API reads and
 //! writes the same data through them.
 
+// None of these run under Miri (`#[cfg_attr(miri, ignore)]`): they all load test.capnp, which
+// takes about a minute there, and they exercise safe code that native runs cover. The loader's
+// Miri coverage is capnp's own `schema_loader::tests` and the small-schema tests in the
+// `load_compiled` and `embedded` submodules.
+
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
@@ -296,6 +301,7 @@ fn cgr_node_id(bytes: &[u8], name: &str) -> u64 {
 // Identity
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn loaded_schemas_equal_themselves_not_compiled() {
     let a = loaded::<test_all_types::Owned>();
     assert!(is_loaded(a));
@@ -335,6 +341,7 @@ fn loaded_schemas_equal_themselves_not_compiled() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn two_loaders_are_unequal() {
     let other = load(CGR);
     let id = id_of::<test_all_types::Owned>();
@@ -353,6 +360,7 @@ fn two_loaders_are_unequal() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn reload_is_deduplicated() {
     // (A conflicting reload is rejected: see capnp's `schema_loader::tests`.)
     let loader = load(SCHEMA_LOADER_CGR);
@@ -363,6 +371,7 @@ fn reload_is_deduplicated() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn hash_map_of_loaded_fields() {
     let schema = loaded::<test_all_types::Owned>();
     let mut map = HashMap::new();
@@ -389,6 +398,7 @@ fn hash_map_of_loaded_fields() {
 
 #[test]
 #[should_panic]
+#[cfg_attr(miri, ignore)]
 fn downcast_of_loaded_struct_to_compiled_type_panics() {
     // A loaded schema is never a compiled one, and the shared loader was never told about the
     // compiled type with `load_compiled` (see load_compiled.rs), so the downcast fails.
@@ -401,6 +411,7 @@ fn downcast_of_loaded_struct_to_compiled_type_panics() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn generated_type_id_consts() {
     use capnp::traits::HasTypeId;
     // Every struct (generic and group too) and interface module has its node's id as `TYPE_ID`.
@@ -429,6 +440,7 @@ fn generated_type_id_consts() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn other_node_kinds() {
     let interface = loader().get_node(test_interface::TYPE_ID).unwrap();
     assert!(matches!(interface.which().unwrap(), node::Interface(_)));
@@ -448,6 +460,7 @@ fn other_node_kinds() {
 // Conformance: the same structure, and the same reads and writes
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn structure_matches_compiled() {
     let mut seen = HashSet::new();
     let roots = [
@@ -475,6 +488,7 @@ fn structure_matches_compiled() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn test_all_types_reads_same() {
     let mut message = message::Builder::new_default();
     test_util::init_test_message(message.init_root());
@@ -495,6 +509,7 @@ fn test_all_types_reads_same() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn defaults_read_same() {
     let message = message::Builder::new_default();
     assert_reads_same::<test_defaults::Owned, _>(&message);
@@ -512,6 +527,7 @@ fn defaults_read_same() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn unions_read_same() {
     let mut message = message::Builder::new_default();
     let mut root: test_union::Builder<'_> = message.init_root();
@@ -539,6 +555,7 @@ fn unions_read_same() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn groups_read_same() {
     let mut message = message::Builder::new_default();
     let root: test_groups::Builder<'_> = message.init_root();
@@ -557,6 +574,7 @@ fn groups_read_same() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn generics_read_same() {
     // Empty: every field reads its (generic, nested) default.
     let message = message::Builder::new_default();
@@ -606,6 +624,7 @@ fn generics_read_same() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn loaded_builder_writes_what_compiled_code_reads() {
     let mut message = message::Builder::new_default();
     let root = message
@@ -692,6 +711,7 @@ fn loaded_builder_writes_what_compiled_code_reads() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn generic_annotation() {
     let annotations = loaded::<test_use_generics::Owned>()
         .get_annotations()
@@ -750,6 +770,7 @@ fn set_struct_type(t: type_::Builder<'_>, id: u64) {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn branded_lookup_matches_compiled_bindings() {
     type Generics = test_generics::Owned<text::Owned, data::Owned>;
     let generics_id = id_of::<Generics>();
@@ -784,6 +805,7 @@ fn branded_lookup_matches_compiled_bindings() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn nested_scopes_and_inherited_bindings() {
     type Generics = test_generics::Owned<text::Owned, data::Owned>;
     type Inner2 = test_generics::inner2::Owned<text::Owned, data::Owned, test_all_types::Owned>;
@@ -874,6 +896,7 @@ fn nested_scopes_and_inherited_bindings() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn groups_take_their_parents_bindings() {
     let id = id_of::<test_generics_groups::Owned<any_pointer::Owned, any_pointer::Owned>>();
     let instance = text_data_instance(id);
@@ -900,6 +923,7 @@ fn groups_take_their_parents_bindings() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn interfaces_and_implicit_parameters() {
     // `cap :TestGenerics(TestInterface, Text)`: an interface binding reads as a capability.
     let cap = struct_of(field_type(loaded::<test_use_generics::Owned>(), "cap"));
@@ -931,6 +955,7 @@ fn interfaces_and_implicit_parameters() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn get_type_resolves_in_scope() {
     let generics_id = id_of::<test_generics::Owned<any_pointer::Owned, any_pointer::Owned>>();
     let instance = text_data_instance(generics_id);
@@ -976,6 +1001,7 @@ fn get_type_resolves_in_scope() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn polymorphic_recursion() {
     let loader = load(SCHEMA_LOADER_CGR);
     let id = |name: &str| {
@@ -1028,6 +1054,7 @@ fn polymorphic_recursion() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn name_lookup_ignores_rust_name_annotations() {
     // Both the loader and generated code sort their name tables by schema name, which is what
     // `find_field_by_name` searches, not by the `$Rust.name`.
