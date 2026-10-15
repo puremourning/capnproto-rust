@@ -15,8 +15,8 @@ regenerate it with the matching capnpc-newtype.
 - Add dynamic entry points: `any_pointer::Reader::get_as_dynamic()`,
   `any_pointer::Builder::{get_as_dynamic, init_dynamic}()` and
   `message::{Reader, Builder}::get_root_as_dynamic()` / `message::Builder::init_root_dynamic()`.
-- Add `schema_loader::SchemaLoader` (`std` feature): validates and loads schema nodes at run
-  time (for example a `CodeGeneratorRequest` from `capnp compile -o-`), giving `StructSchema`,
+- Add `schema_loader::SchemaLoader` (`std` and `alloc` features): validates and loads schema
+  nodes at run time (for example a `CodeGeneratorRequest` from `capnp compile -o-`), giving `StructSchema`,
   `EnumSchema` and `Type` values that drive the dynamic API like compiled ones. See
   `example/dynamic-dump`.
 - Add `SchemaLoader::load_compiled::<T>()` (like C++ `loadCompiledTypeAndDependencies<T>()`),

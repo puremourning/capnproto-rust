@@ -423,7 +423,7 @@ pub(crate) enum StructBrand {
     /// A schema loaded at run time. Its identity is the address of the
     /// interned brand instance, so two lookups of the same instantiation in
     /// one loader are equal, and nothing else is.
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "alloc"))]
     Loaded(crate::schema_loader::BrandRef),
 }
 
@@ -452,7 +452,7 @@ impl RawBrandedStructSchema {
     pub(crate) fn field_type(&self, index: u16) -> Type {
         match self.brand {
             StructBrand::Compiled { field_types, .. } => field_types(index),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(brand) => brand.get().field_type(index),
         }
     }
@@ -461,7 +461,7 @@ impl RawBrandedStructSchema {
     pub(crate) fn brand_binding(&self, scope_id: u64, index: u16) -> Option<Type> {
         match self.brand {
             StructBrand::Compiled { brand_binding, .. } => brand_binding(scope_id, index),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(brand) => brand.get().brand_binding(scope_id, index),
         }
     }
@@ -475,7 +475,7 @@ impl RawBrandedStructSchema {
             StructBrand::Compiled {
                 annotation_types, ..
             } => AnnotationSource::Compiled(annotation_types),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(brand) => AnnotationSource::Loaded(brand),
         }
     }
@@ -486,7 +486,7 @@ impl RawBrandedStructSchema {
             return true;
         }
         match (self.brand, target.brand) {
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             (StructBrand::Loaded(brand), StructBrand::Compiled { type_id, .. }) => {
                 brand.get().usable_as(target, type_id)
             }
@@ -499,7 +499,7 @@ impl RawBrandedStructSchema {
     pub fn is_loaded(&self) -> bool {
         match self.brand {
             StructBrand::Compiled { .. } => false,
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(_) => true,
         }
     }
@@ -512,9 +512,9 @@ impl ::core::cmp::PartialEq for RawBrandedStructSchema {
                 StructBrand::Compiled { type_id: a, .. },
                 StructBrand::Compiled { type_id: b, .. },
             ) => a == b,
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             (StructBrand::Loaded(a), StructBrand::Loaded(b)) => a.addr() == b.addr(),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             _ => false,
         }
     }
@@ -525,7 +525,7 @@ impl ::core::hash::Hash for RawBrandedStructSchema {
         ::core::mem::discriminant(&self.brand).hash(state);
         match &self.brand {
             StructBrand::Compiled { type_id, .. } => type_id.hash(state),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(brand) => brand.addr().hash(state),
         }
     }
@@ -535,7 +535,7 @@ impl core::fmt::Debug for StructBrand {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
         match self {
             StructBrand::Compiled { type_id, .. } => write!(f, "Compiled({type_id:?})"),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             StructBrand::Loaded(brand) => write!(f, "Loaded({:?})", brand.addr()),
         }
     }
@@ -564,7 +564,7 @@ pub(crate) enum AnnotationSource {
     Compiled(fn(Option<u16>, u32) -> Type),
 
     /// The annotation types of a loaded struct instance or enum.
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "alloc"))]
     Loaded(crate::schema_loader::BrandRef),
 }
 
@@ -574,7 +574,7 @@ impl AnnotationSource {
     pub(crate) fn get(self, child_index: Option<u16>, index: u32) -> Type {
         match self {
             AnnotationSource::Compiled(f) => f(child_index, index),
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             AnnotationSource::Loaded(brand) => brand.get().annotation_type(child_index, index),
         }
     }
@@ -626,7 +626,7 @@ impl RawEnumSchema {
     pub fn is_loaded(&self) -> bool {
         match self.annotations {
             AnnotationSource::Compiled(_) => false,
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             AnnotationSource::Loaded(_) => true,
         }
     }
@@ -637,7 +637,7 @@ impl RawEnumSchema {
             return true;
         }
         match (self.annotations, target.annotations) {
-            #[cfg(feature = "std")]
+            #[cfg(all(feature = "std", feature = "alloc"))]
             (AnnotationSource::Loaded(brand), AnnotationSource::Compiled(_)) => {
                 brand.get().enum_usable_as(target)
             }
