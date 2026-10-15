@@ -3623,6 +3623,12 @@ fn generate_scalar_newtype_alias(
     ]))
 }
 
+// The node's id, as `pub const TYPE_ID` in the module of every struct and interface. It is the
+// id the schema (and a `SchemaLoader`) knows the node by.
+fn type_id_line(node_id: u64) -> FormattedText {
+    Line(format!("pub const TYPE_ID: u64 = {};", format_u64(node_id)))
+}
+
 fn generate_node(
     ctx: &GeneratorContext,
     node_id: u64,
@@ -3855,6 +3861,7 @@ fn generate_node(
                 "pub(crate) const TYPE_ID: u64 = {};",
                 format_u64(node_id)
             )));
+            preamble.push(Branch(vec![type_id_line(node_id), BlankLine]));
 
             let from_pointer_builder_impl = Branch(vec![
                 Line(fmt!(
@@ -4264,6 +4271,7 @@ fn generate_node(
             )));
 
             mod_interior.push(line("#![allow(unused_variables)]"));
+            mod_interior.push(type_id_line(node_id));
 
             let methods = interface.get_methods()?;
             for (ordinal, method) in methods.into_iter().enumerate() {
