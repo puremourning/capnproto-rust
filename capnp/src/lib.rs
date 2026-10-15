@@ -27,9 +27,9 @@
 //! [capnpc-rust](https://crates.io/crates/capnpc) crate.
 //!
 //! Generated types can also be accessed reflectively: the [`dynamic_struct`], [`dynamic_list`]
-//! and [`dynamic_value`] modules walk a message given only its [`schema`]. With the `std`
-//! feature, `schema_loader` provides such schemas at run time, from nodes that are not compiled
-//! into the binary (typically a `CodeGeneratorRequest` from `capnp compile -o-`).
+//! and [`dynamic_value`] modules walk a message given only its [`schema`]. With the `std` and
+//! `alloc` features, `schema_loader` provides such schemas at run time, from nodes that are not
+//! compiled into the binary (typically a `CodeGeneratorRequest` from `capnp compile -o-`).
 //!
 //! ## `type` newtypes
 //!
@@ -87,7 +87,7 @@ pub mod primitive_list;
 pub mod private;
 pub mod raw;
 pub mod schema;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "alloc"))]
 pub mod schema_loader;
 pub mod serialize;
 pub mod serialize_packed;
