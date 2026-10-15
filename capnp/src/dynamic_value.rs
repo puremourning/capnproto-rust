@@ -80,6 +80,18 @@ impl<'a> Reader<'a> {
         let sr: dynamic_struct::Reader = self.downcast();
         sr.downcast::<T>()
     }
+
+    /// Downcasts the `Reader` into a specific struct type, or fails with
+    /// [`crate::ErrorKind::TypeMismatch`] if it is not a struct whose type is usable as `T`;
+    /// see [`dynamic_struct::Reader::try_downcast`].
+    pub fn try_downcast_struct<T: crate::traits::OwnedStruct>(
+        self,
+    ) -> crate::Result<T::Reader<'a>> {
+        match self {
+            Self::Struct(s) => s.try_downcast::<T>(),
+            _ => Err(crate::Error::from_kind(crate::ErrorKind::TypeMismatch)),
+        }
+    }
 }
 
 impl<'a> From<()> for Reader<'a> {
@@ -238,6 +250,18 @@ impl<'a> Builder<'a> {
     pub fn downcast_struct<T: crate::traits::OwnedStruct>(self) -> T::Builder<'a> {
         let sb: dynamic_struct::Builder = self.downcast();
         sb.downcast::<T>()
+    }
+
+    /// Downcasts the `Builder` into a specific struct type, or fails with
+    /// [`crate::ErrorKind::TypeMismatch`] if it is not a struct whose type is usable as `T`;
+    /// see [`dynamic_struct::Builder::try_downcast`].
+    pub fn try_downcast_struct<T: crate::traits::OwnedStruct>(
+        self,
+    ) -> crate::Result<T::Builder<'a>> {
+        match self {
+            Self::Struct(s) => s.try_downcast::<T>(),
+            _ => Err(crate::Error::from_kind(crate::ErrorKind::TypeMismatch)),
+        }
     }
 }
 

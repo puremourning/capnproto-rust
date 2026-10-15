@@ -1,3 +1,20 @@
+## Unreleased
+Requires the matching (unreleased) capnp-newtype; regenerate existing generated code.
+- Build struct schemas with `RawBrandedStructSchema::compiled(..)`, and emit
+  `get_brand_binding` for generic structs.
+- Emit `pub const TYPE_ID` (the node's id) in every struct, group and interface module, as
+  newtype modules already had, so `foo::TYPE_ID` can be used instead of
+  `<foo::Reader<'_> as HasTypeId>::TYPE_ID`.
+- Add `CompilerCommand::embed_schema()` (and `CodeGenerationCommand::embed_schema()`): opt-in
+  `pub static SCHEMA_BYTES: &[u8]` in each generated file, a serialized `CodeGeneratorRequest`
+  with the file's nodes and those of every file it reaches, `include_bytes!`d from a
+  `foo_capnp_schema.cgr` written next to `foo_capnp.rs`. That set is closed, so a
+  `SchemaLoader` without the generated code can load it, for example after it is sent over the
+  wire.
+- Emit a per-level `UseSiteTable` for each newtype use site, replacing `*_OFFSETS` slices.
+- Fix `MEMBERS_BY_NAME` being sorted by the `$Rust.name` annotation instead of the schema
+  name, which broke `StructSchema::find_field_by_name()` for renamed fields.
+
 ## v0.27.2
 - Fix bug where newtypes in generic structs did not include their generic types
 

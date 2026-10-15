@@ -64,6 +64,7 @@
 
 pub mod codegen;
 pub mod codegen_types;
+mod embedded_schema;
 mod pointer_constants;
 
 use std::{
@@ -118,6 +119,7 @@ pub struct CompilerCommand {
     default_parent_module: Vec<String>,
     raw_code_generator_request_path: Option<PathBuf>,
     crate_provides_map: HashMap<u64, String>,
+    embed_schema: bool,
 }
 
 impl CompilerCommand {
@@ -221,6 +223,21 @@ impl CompilerCommand {
         for file in files.into_iter() {
             self.crate_provides_map.insert(file, crate_name.clone());
         }
+        self
+    }
+
+    /// If set, each generated file also gets `pub static SCHEMA_BYTES: &[u8]`: a serialized
+    /// `CodeGeneratorRequest` (standard framing, 8-byte aligned) holding the file's schema nodes
+    /// and those of every file they refer to. It is closed, so a process without the generated
+    /// code can load it with `capnp::schema_loader::SchemaLoader::load_code_generator_request`,
+    /// for example after receiving the bytes over the wire, and then read the file's types
+    /// through the dynamic API. Off by default, since it embeds imports' schemas too.
+    ///
+    /// The bytes are written to `foo_capnp_schema.cgr` next to the generated `foo_capnp.rs`,
+    /// which `include_bytes!`s it, so keep the two together (commit both, if you check
+    /// generated code in).
+    pub fn embed_schema(&mut self, embed: bool) -> &mut Self {
+        self.embed_schema = embed;
         self
     }
 
@@ -376,7 +393,8 @@ impl CompilerCommand {
         code_generation_command
             .output_directory(output_path)
             .default_parent_module(self.default_parent_module.clone())
-            .crates_provide_map(self.crate_provides_map.clone());
+            .crates_provide_map(self.crate_provides_map.clone())
+            .embed_schema(self.embed_schema);
         if let Some(raw_code_generator_request_path) = &self.raw_code_generator_request_path {
             code_generation_command
                 .raw_code_generator_request_path(raw_code_generator_request_path.clone());

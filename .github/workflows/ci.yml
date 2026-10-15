@@ -49,6 +49,14 @@ jobs:
     - name: Run example
       run: ./target/debug/addressbook write | ./target/debug/addressbook read
 
+    - name: Run dynamic-dump example
+      # `shell: bash` adds pipefail, so a failing writer fails the step.
+      shell: bash
+      run: |
+          ./target/debug/dynamic-dump write | ./target/debug/dynamic-dump read
+          capnp compile -o- example/dynamic-dump/payload.capnp > target/payload.cgr
+          ./target/debug/dynamic-dump write --no-schema | ./target/debug/dynamic-dump read target/payload.cgr
+
     - name: Build in release mode
       run: cargo build --all --release
 
@@ -75,23 +83,25 @@ jobs:
       - name: Install Cap'n Proto (newtype)
         uses: ./.github/actions/install-capnp
 
+      # The schema loader's tests are slow under Miri and don't depend on the configuration, so
+      # only the default configuration runs them.
       - name: Test default features
         run: cargo miri test --package capnp-newtype --package capnpc-test
 
       - name: Test no default features
-        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features
+        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features -- --skip schema_loader
 
       - name: Test default features 32-bit
-        run: cargo miri test --package capnp-newtype --package capnpc-test --target i686-unknown-linux-gnu
+        run: cargo miri test --package capnp-newtype --package capnpc-test --target i686-unknown-linux-gnu -- --skip schema_loader
 
       - name: Test no default features 32-bit
-        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features --target i686-unknown-linux-gnu
+        run: cargo miri test --package capnp-newtype --package capnpc-test --no-default-features --target i686-unknown-linux-gnu -- --skip schema_loader
 
       - name: Test sync_reader
-        run: cargo miri test --package capnp-newtype --package capnpc-test --features sync_reader
+        run: cargo miri test --package capnp-newtype --package capnpc-test --features sync_reader -- --skip schema_loader
 
       - name: Test unaligned
-        run: cargo miri test --package capnp-newtype --package capnpc-test --features unaligned
+        run: cargo miri test --package capnp-newtype --package capnpc-test --features unaligned -- --skip schema_loader
 
   minrust:
     name: minrust

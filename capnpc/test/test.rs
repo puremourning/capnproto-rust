@@ -50,6 +50,7 @@ capnp::generated_code!(pub mod test_newtype_capnp);
 capnp::generated_code!(pub mod test_newtype_import_capnp);
 capnp::generated_code!(pub mod test_newtype_evolution_v1_capnp);
 capnp::generated_code!(pub mod test_newtype_evolution_v2_capnp);
+capnp::generated_code!(pub mod test_schema_loader_protocol_capnp);
 
 capnp::generated_code!(pub mod test_in_dir_capnp, "schema/test_in_dir_capnp.rs");
 
@@ -62,10 +63,19 @@ capnp::generated_code!(pub mod test_output_path_capnp, "inner-output-path/test_o
 mod test_util;
 
 #[cfg(test)]
+mod brand_bindings;
+
+#[cfg(test)]
 mod dynamic;
 
 #[cfg(test)]
 mod newtype_evolution;
+
+#[cfg(test)]
+mod newtype_layout;
+
+#[cfg(test)]
+mod schema_loader;
 
 #[cfg(test)]
 mod tests {

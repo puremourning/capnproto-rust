@@ -9,6 +9,7 @@ fn main() {
         .file("schema/test-in-dir.capnp")
         .file("schema-with-src-prefix/test-in-src-prefix-dir.capnp")
         .src_prefix("schema-with-src-prefix")
+        .embed_schema(true)
         .raw_code_generator_request_path(
             std::env::var("OUT_DIR").expect("OUT_DIR env var is not set")
                 + "/raw_code_gen_request.bin",
@@ -18,15 +19,41 @@ fn main() {
 
     // Two versions of an evolving newtype schema, for the cross-version tests in
     // newtype_evolution.rs. Their newtypes share ids, so each needs a run of its own.
-    for file in [
-        "test-newtype-evolution-v1.capnp",
-        "test-newtype-evolution-v2.capnp",
+    // Their raw requests are dumped for the schema loader's cross-version tests.
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
+    for (file, cgr) in [
+        ("test-newtype-evolution-v1.capnp", "evolution-v1.cgr"),
+        ("test-newtype-evolution-v2.capnp", "evolution-v2.cgr"),
     ] {
         capnpc::CompilerCommand::new()
             .file(file)
+            .raw_code_generator_request_path(format!("{out_dir}/{cgr}"))
             .run()
             .expect("compiling schema");
     }
+
+    // A small protocol the schema loader's downcast tests read both as generated code and as a
+    // request of its own, so a test can load it into a fresh loader cheaply.
+    capnpc::CompilerCommand::new()
+        .file("test-schema-loader-protocol.capnp")
+        .embed_schema(true)
+        .raw_code_generator_request_path(format!("{out_dir}/schema-loader-protocol.cgr"))
+        .run()
+        .expect("compiling schema");
+
+    // A schema only the runtime schema loader reads (see the file): dump its request without
+    // generating code.
+    let output = std::process::Command::new("capnp")
+        .args(["compile", "-o-", "test-schema-loader.capnp"])
+        .output()
+        .expect("running capnp compile");
+    assert!(
+        output.status.success(),
+        "capnp compile failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    std::fs::write(format!("{out_dir}/schema-loader.cgr"), output.stdout)
+        .expect("writing schema-loader.cgr");
 
     capnpc::CompilerCommand::new()
         .file("test-default-parent-module.capnp")

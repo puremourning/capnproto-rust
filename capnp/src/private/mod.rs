@@ -27,6 +27,9 @@ pub mod arena;
 pub mod capability;
 pub mod layout;
 mod mask;
+#[cfg(feature = "alloc")]
+#[doc(hidden)]
+pub mod newtype_layout;
 mod primitive;
 mod read_limiter;
 pub mod units;
@@ -34,3 +37,8 @@ mod zero;
 
 #[cfg(test)]
 mod layout_test;
+
+/// `T` at 8-byte (word) alignment. Generated code wraps an `include_bytes!` of a serialized
+/// message in it (`SCHEMA_BYTES`), so the message can be read in place.
+#[repr(C, align(8))]
+pub struct AlignedBytes<T: ?Sized>(pub T);
