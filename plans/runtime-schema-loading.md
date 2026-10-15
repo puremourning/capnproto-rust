@@ -576,5 +576,5 @@ TODO (deferred, 2026-10-15):
   collecting a compiled type's nodes (generated code lacks annotation, `type` and interface
   nodes, so that set isn't closed), capnpc's opt-in `embed_schema` emits each file's closed
   `SCHEMA_BYTES` (a `CodeGeneratorRequest`). `Type::write_schema_type` encodes a branded type
-  for the receiver's `get_type`. Left open: emitting `SCHEMA_BYTES` one word per line makes
-  large schemas bloat generated source (test.capnp: about 130 KB of schema, 0.75 MB of source).
+  for the receiver's `get_type`. The bytes live in a `foo_capnp_schema.cgr` side file that the
+  generated code `include_bytes!`s, word-aligned through `capnp::private::AlignedBytes`.

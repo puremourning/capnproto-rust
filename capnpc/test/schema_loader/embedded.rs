@@ -38,6 +38,11 @@ type MessageRequest = msg::Owned<request::Owned<text::Owned>>;
 
 /// Loads a generated file's `SCHEMA_BYTES`, read in place (they are aligned).
 fn load_embedded(loader: &SchemaLoader, mut bytes: &[u8]) -> capnp::Result<()> {
+    assert_eq!(
+        bytes.as_ptr() as usize % 8,
+        0,
+        "SCHEMA_BYTES is word-aligned"
+    );
     let message = serialize::read_message_from_flat_slice(&mut bytes, Default::default())?;
     let request: code_generator_request::Reader<'_> = message.get_root()?;
     loader.load_code_generator_request(request)
