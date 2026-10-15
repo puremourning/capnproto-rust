@@ -23,6 +23,10 @@
 //! what a process needs to send another one, which has no generated code, so that it can read
 //! the sender's (branded) types.
 
+// Under Miri (CI's default configuration only), a curated subset runs: the tests marked
+// `#[cfg_attr(miri, ignore)]` load large schemas or sweep them, which takes minutes there and
+// exercises safe code that native runs cover.
+
 use capnp::introspect::{Introspect, Type, TypeVariant};
 use capnp::schema::StructSchema;
 use capnp::schema_capnp::{code_generator_request, type_};
@@ -79,6 +83,7 @@ fn envelope_field_type(loader: &SchemaLoader, name: &str) -> Type {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn each_embedded_schema_loads_on_its_own() {
     // test.capnp imports rust.capnp and another file, uses annotations and interfaces;
     // test-newtype.capnp imports `type` newtypes from test-newtype-import.capnp.
@@ -109,6 +114,7 @@ fn each_embedded_schema_loads_on_its_own() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn embedded_schema_holds_only_the_files_it_reaches() {
     let loader = SchemaLoader::new();
     load_embedded(&loader, crate::test_newtype_import_capnp::SCHEMA_BYTES).unwrap();
@@ -120,6 +126,7 @@ fn embedded_schema_holds_only_the_files_it_reaches() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn embedded_schemas_sharing_imports_load_one_after_another() {
     let loader = SchemaLoader::new();
     load_embedded(&loader, crate::test_newtype_import_capnp::SCHEMA_BYTES).unwrap();
@@ -128,6 +135,7 @@ fn embedded_schemas_sharing_imports_load_one_after_another() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn branded_types_resolve_to_the_instances_the_compiler_wrote() {
     let loader = SchemaLoader::new();
     load_embedded(&loader, protocol::SCHEMA_BYTES).unwrap();

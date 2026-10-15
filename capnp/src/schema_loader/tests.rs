@@ -1008,6 +1008,8 @@ fn usable_as_is_equality_for_compiled_and_unrelated_types() {
 }
 
 #[test]
+// Loads all of schema.capnp, which takes a long time under Miri.
+#[cfg_attr(miri, ignore)]
 fn load_compiled_inserts_generated_nodes() {
     // The bootstrap schema is generated code too: load `Node` and everything it reaches from
     // it alone, then read a node through the loaded schema and downcast it.

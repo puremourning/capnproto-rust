@@ -24,6 +24,10 @@
 //!
 //! Every test uses a fresh loader, because `load_compiled` changes what downcasts accept.
 
+// Under Miri (CI's default configuration only), a curated subset runs: the tests marked
+// `#[cfg_attr(miri, ignore)]` load large schemas or sweep them, which takes minutes there and
+// exercises safe code that native runs cover.
+
 use capnp::introspect::{Introspect, TypeVariant};
 use capnp::schema_capnp::{code_generator_request, node};
 use capnp::schema_loader::SchemaLoader;
@@ -143,6 +147,7 @@ fn message_request_downcasts_but_message_reply_does_not() {
 
 #[test]
 #[should_panic(expected = "not usable as the target type")]
+#[cfg_attr(miri, ignore)]
 fn message_request_does_not_downcast_to_message_reply() {
     let loader = protocol_loader();
     loader.load_compiled::<MessageRequest>().unwrap();
@@ -152,6 +157,7 @@ fn message_request_does_not_downcast_to_message_reply() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn without_load_compiled_downcasts_fail() {
     let loader = protocol_loader();
     let message = envelope_message();
@@ -170,6 +176,7 @@ fn without_load_compiled_downcasts_fail() {
 
 #[test]
 #[should_panic(expected = "not usable as the target type")]
+#[cfg_attr(miri, ignore)]
 fn without_load_compiled_downcast_panics() {
     let loader = protocol_loader();
     let message = envelope_message();
@@ -177,6 +184,7 @@ fn without_load_compiled_downcast_panics() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn phantom_parameter_mismatch_is_rejected() {
     let loader = protocol_loader();
     loader
@@ -197,6 +205,7 @@ fn phantom_parameter_mismatch_is_rejected() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn groups_downcast_after_loading_the_parent() {
     let loader = protocol_loader();
     let message = envelope_message();
@@ -246,6 +255,7 @@ fn nested_generic_scopes() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn lists_of_generic_structs_and_enums_downcast() {
     let loader = protocol_loader();
     let message = envelope_message();
@@ -278,6 +288,7 @@ fn lists_of_generic_structs_and_enums_downcast() {
 
 #[test]
 #[should_panic]
+#[cfg_attr(miri, ignore)]
 fn list_of_message_request_does_not_downcast_to_message_reply() {
     let loader = protocol_loader();
     loader.load_compiled::<envelope::Owned>().unwrap();
@@ -339,6 +350,7 @@ fn loaded_builder_downcasts_to_compiled_builder() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn mismatched_node_is_an_error() {
     // The same `Request` node, with a field renamed: same id, different content.
     let cgr = read_cgr(PROTOCOL_CGR);
@@ -377,6 +389,7 @@ fn mismatched_node_is_an_error() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn compiled_nodes_are_loaded_when_missing() {
     let loader = SchemaLoader::new();
     loader.load_compiled::<envelope::Owned>().unwrap();
@@ -433,6 +446,7 @@ fn compiled_nodes_are_loaded_when_missing() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)]
 fn compiled_nodes_referring_to_unloaded_nodes_fail_to_load() {
     // TestUseGenerics carries an annotation, whose node generated code doesn't have.
     use crate::test_capnp::test_use_generics;
