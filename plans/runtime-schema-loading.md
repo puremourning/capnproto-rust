@@ -572,9 +572,9 @@ TODO (deferred, 2026-10-15):
 - `SchemaLoader::get_struct_bound(id, &[Type])`: binds a struct's own parameters in order, so a
   caller needn't build a `Brand` message by hand. Deferred because a `&[Type]` can't be sent over
   a wire; a CGR or an explicit `Brand`/`Type` message is the practical form for that.
-- Exporting a compiled type's schema for a remote loader: there is no public way to collect the
-  nodes a compiled type reaches (`CompiledGraph` is private to `load_compiled`). There is also no
-  encoder from a compiled branded `introspect::Type` to a `schema.capnp` `Type`, which the
-  receiver would pass to `get_type`. The collected nodes aren't closed either: generated code
-  doesn't carry annotation, `type` newtype or interface nodes, so a batch with any of those
-  references is rejected.
+- ~~Exporting a compiled type's schema for a remote loader~~: done another way. Instead of
+  collecting a compiled type's nodes (generated code lacks annotation, `type` and interface
+  nodes, so that set isn't closed), capnpc's opt-in `embed_schema` emits each file's closed
+  `SCHEMA_BYTES` (a `CodeGeneratorRequest`). `Type::write_schema_type` encodes a branded type
+  for the receiver's `get_type`. Left open: emitting `SCHEMA_BYTES` one word per line makes
+  large schemas bloat generated source (test.capnp: about 130 KB of schema, 0.75 MB of source).

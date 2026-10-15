@@ -4,6 +4,11 @@ Requires the matching (unreleased) capnp-newtype; regenerate existing generated 
   `get_brand_binding` for generic structs.
 - Emit `pub const TYPE_ID` (the node's id) in every struct, group and interface module, so
   `foo::TYPE_ID` can be used instead of `<foo::Reader<'_> as HasTypeId>::TYPE_ID`.
+- Add `CompilerCommand::embed_schema()` (and `CodeGenerationCommand::embed_schema()`): opt-in
+  `pub static SCHEMA_BYTES: &[u8]` in each generated file, a serialized `CodeGeneratorRequest`
+  with the file's nodes and those of every file it reaches. That set is closed, so a
+  `SchemaLoader` without the generated code can load it, for example after it is sent over the
+  wire.
 - Fix `MEMBERS_BY_NAME` being sorted by the `$Rust.name` annotation instead of the schema
   name, which broke `StructSchema::find_field_by_name()` for renamed fields.
 

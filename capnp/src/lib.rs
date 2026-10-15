@@ -155,7 +155,7 @@ impl Word {
         vec![word(0, 0, 0, 0, 0, 0, 0, 0); length]
     }
 
-    pub fn words_to_bytes(words: &[Self]) -> &[u8] {
+    pub const fn words_to_bytes(words: &[Self]) -> &[u8] {
         unsafe { core::slice::from_raw_parts(words.as_ptr() as *const u8, words.len() * 8) }
     }
 
