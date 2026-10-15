@@ -567,3 +567,14 @@ Known gaps:
 - Annotation values aren't type-checked at load. A mismatch surfaces as `TypeMismatch` from
   `get_value`.
 - Changelogs say "Unreleased". This is a breaking release, so it should probably be 0.28.0.
+
+TODO (deferred, 2026-10-15):
+- `SchemaLoader::get_struct_bound(id, &[Type])`: binds a struct's own parameters in order, so a
+  caller needn't build a `Brand` message by hand. Deferred because a `&[Type]` can't be sent over
+  a wire; a CGR or an explicit `Brand`/`Type` message is the practical form for that.
+- Exporting a compiled type's schema for a remote loader: there is no public way to collect the
+  nodes a compiled type reaches (`CompiledGraph` is private to `load_compiled`). There is also no
+  encoder from a compiled branded `introspect::Type` to a `schema.capnp` `Type`, which the
+  receiver would pass to `get_type`. The collected nodes aren't closed either: generated code
+  doesn't carry annotation, `type` newtype or interface nodes, so a batch with any of those
+  references is rejected.
