@@ -123,7 +123,6 @@ impl CodeGenerationCommand {
         T: std::io::Read,
     {
         use capnp::serialize;
-        use std::io::Write;
 
         let message = serialize::read_message(inp, capnp::message::ReaderOptions::new())?;
 
@@ -151,6 +150,14 @@ impl CodeGenerationCommand {
                 Err(_) => "<unknown>".to_owned(),
             };
 
+            // `SCHEMA_BYTES`' bytes go in a file of their own next to the generated one, which
+            // `include_bytes!`s it.
+            let schema_file_name = format!("{root_name}_capnp_schema.cgr");
+            if self.embed_schema {
+                let bytes = crate::embedded_schema::embedded_schema_bytes(&ctx, requested_file)?;
+                write_if_changed(&filepath.with_file_name(&schema_file_name), &bytes)?;
+            }
+
             let lines =
                 Branch(vec![
                 Line(
@@ -166,7 +173,10 @@ impl CodeGenerationCommand {
                 if self.embed_schema {
                     Branch(vec![
                         BlankLine,
-                        crate::embedded_schema::generate_embedded_schema(&ctx, requested_file)?,
+                        crate::embedded_schema::embedded_schema_declaration(
+                            &ctx,
+                            &schema_file_name,
+                        ),
                     ])
                 } else {
                     Branch(Vec::new())
@@ -175,29 +185,7 @@ impl CodeGenerationCommand {
 
             let text = stringify(&lines);
 
-            let previous_text = ::std::fs::read(&filepath);
-            if previous_text.is_ok() && previous_text.unwrap() == text.as_bytes() {
-                // File is unchanged. Do not write it so that builds with the
-                // output as part of the source work in read-only filesystems
-                // and so timestamp-based build systems and watchers do not get
-                // confused.
-                continue;
-            }
-
-            // It would be simpler to use the ? operator instead of a pattern match, but then the error message
-            // would not include `filepath`.
-            match ::std::fs::File::create(&filepath) {
-                Ok(mut writer) => {
-                    writer.write_all(text.as_bytes()).map_err(convert_io_err)?;
-                }
-                Err(e) => {
-                    let _ = writeln!(
-                        &mut ::std::io::stderr(),
-                        "could not open file {filepath:?} for writing: {e}"
-                    );
-                    return Err(convert_io_err(e));
-                }
-            }
+            write_if_changed(&filepath, text.as_bytes())?;
         }
 
         if let Some(raw_code_generator_request) = &self.raw_code_generator_request_path {
@@ -210,6 +198,28 @@ impl CodeGenerationCommand {
         }
 
         Ok(())
+    }
+}
+
+/// Writes `contents` to `path`, unless it already holds them: then builds with the output as part
+/// of the source work in read-only filesystems, and timestamp-based build systems and watchers
+/// are not confused.
+fn write_if_changed(path: &Path, contents: &[u8]) -> ::capnp::Result<()> {
+    use std::io::Write;
+    if ::std::fs::read(path).is_ok_and(|previous| previous == contents) {
+        return Ok(());
+    }
+    // It would be simpler to use the ? operator instead of a pattern match, but then the error
+    // message would not include `path`.
+    match ::std::fs::File::create(path) {
+        Ok(mut writer) => writer.write_all(contents).map_err(convert_io_err),
+        Err(e) => {
+            let _ = writeln!(
+                &mut ::std::io::stderr(),
+                "could not open file {path:?} for writing: {e}"
+            );
+            Err(convert_io_err(e))
+        }
     }
 }
 

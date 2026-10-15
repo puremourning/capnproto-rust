@@ -232,6 +232,10 @@ impl CompilerCommand {
     /// code can load it with `capnp::schema_loader::SchemaLoader::load_code_generator_request`,
     /// for example after receiving the bytes over the wire, and then read the file's types
     /// through the dynamic API. Off by default, since it embeds imports' schemas too.
+    ///
+    /// The bytes are written to `foo_capnp_schema.cgr` next to the generated `foo_capnp.rs`,
+    /// which `include_bytes!`s it, so keep the two together (commit both, if you check
+    /// generated code in).
     pub fn embed_schema(&mut self, embed: bool) -> &mut Self {
         self.embed_schema = embed;
         self

@@ -29,7 +29,6 @@ regenerate it with the matching capnpc-newtype.
 - Add `introspect::Type::write_schema_type()`: writes a compiled (or loaded) type as a
   schema.capnp `Type` with every brand binding spelled out, so another process can resolve a
   branded type such as `Message(Request(Text))` with `SchemaLoader::get_type()`.
-- `Word::words_to_bytes()` is now a `const fn`.
 
 ## v0.27.4
 - In dynamic API, all downcasting newtypes to their AnyReader/AnyBuilder

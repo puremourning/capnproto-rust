@@ -28,14 +28,15 @@ use capnp::dynamic_value;
 use capnp::schema_capnp::{code_generator_request, node};
 
 use crate::codegen::FormattedText::{Branch, Line};
-use crate::codegen::{fmt, indent, line, FormattedText, GeneratorContext};
+use crate::codegen::{fmt, line, FormattedText, GeneratorContext};
 
-/// Emits `SCHEMA_BYTES` for `requested_file`: the nodes of every file it reaches, which is
-/// what a `SchemaLoader` needs for the batch to be closed.
-pub(crate) fn generate_embedded_schema(
+/// The schema `requested_file`'s `SCHEMA_BYTES` hold: the nodes of every file it reaches, which
+/// is what a `SchemaLoader` needs for the batch to be closed, as a serialized
+/// `CodeGeneratorRequest`.
+pub(crate) fn embedded_schema_bytes(
     ctx: &GeneratorContext,
     requested_file: code_generator_request::requested_file::Reader<'_>,
-) -> capnp::Result<FormattedText> {
+) -> capnp::Result<Vec<u8>> {
     let files = reached_files(ctx, requested_file.get_id())?;
 
     let mut message = capnp::message::Builder::new_default();
@@ -56,41 +57,24 @@ pub(crate) fn generate_embedded_schema(
     request
         .init_requested_files(1)
         .set_with_caveats(0, requested_file)?;
+    Ok(capnp::serialize::write_message_to_words(&message))
+}
 
-    let bytes = capnp::serialize::write_message_to_words(&message);
-    let words: Vec<FormattedText> = bytes
-        .chunks(8)
-        .map(|b| {
-            Line(fmt!(
-                ctx,
-                "{capnp}::word({}, {}, {}, {}, {}, {}, {}, {}),",
-                b[0],
-                b[1],
-                b[2],
-                b[3],
-                b[4],
-                b[5],
-                b[6],
-                b[7]
-            ))
-        })
-        .collect();
-    Ok(Branch(vec![
+/// Declares `SCHEMA_BYTES`, reading the bytes from `file_name` next to the generated file. They
+/// are word-aligned, so they can be read in place.
+pub(crate) fn embedded_schema_declaration(
+    ctx: &GeneratorContext,
+    file_name: &str,
+) -> FormattedText {
+    Branch(vec![
         line("/// This file's schema and that of every file it refers to, as a serialized"),
         line("/// `CodeGeneratorRequest` (standard framing, 8-byte aligned): load it with"),
         line("/// `SchemaLoader::load_code_generator_request` to read these types dynamically."),
         Line(fmt!(
             ctx,
-            "pub static SCHEMA_BYTES: &[u8] = {capnp}::Word::words_to_bytes(&SCHEMA_WORDS);"
+            "pub static SCHEMA_BYTES: &[u8] = &{capnp}::private::AlignedBytes(*include_bytes!(\"{file_name}\")).0;"
         )),
-        Line(fmt!(
-            ctx,
-            "static SCHEMA_WORDS: [{capnp}::Word; {}] = [",
-            words.len()
-        )),
-        indent(Branch(words)),
-        line("];"),
-    ]))
+    ])
 }
 
 /// The file `id` is declared in. Ids not in the request (see `referenced_ids`) map to themselves.

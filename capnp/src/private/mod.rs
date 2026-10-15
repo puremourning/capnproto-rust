@@ -37,3 +37,8 @@ mod zero;
 
 #[cfg(test)]
 mod layout_test;
+
+/// `T` at 8-byte (word) alignment. Generated code wraps an `include_bytes!` of a serialized
+/// message in it (`SCHEMA_BYTES`), so the message can be read in place.
+#[repr(C, align(8))]
+pub struct AlignedBytes<T: ?Sized>(pub T);
