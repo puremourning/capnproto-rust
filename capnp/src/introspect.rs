@@ -133,6 +133,71 @@ impl Type {
         }
     }
 
+    /// Writes `self` as a schema.capnp `Type`, with every brand binding spelled out, so it can
+    /// be sent to another process: there,
+    /// [`SchemaLoader::get_type`](crate::schema_loader::SchemaLoader::get_type) resolves it
+    /// (with no scope) once the nodes it names are loaded, for example from a generated file's
+    /// `SCHEMA_BYTES` (`capnpc::CompilerCommand::embed_schema`). This is how to send a branded
+    /// type such as `Request(NewOrderSingle(Foo))`, which no single node id names.
+    ///
+    /// A capability is written as an unconstrained capability `AnyPointer`: `Type` doesn't
+    /// record which interface it is.
+    pub fn write_schema_type(self, mut builder: crate::schema_capnp::type_::Builder<'_>) {
+        match self.which() {
+            TypeVariant::Void => builder.set_void(()),
+            TypeVariant::Bool => builder.set_bool(()),
+            TypeVariant::Int8 => builder.set_int8(()),
+            TypeVariant::Int16 => builder.set_int16(()),
+            TypeVariant::Int32 => builder.set_int32(()),
+            TypeVariant::Int64 => builder.set_int64(()),
+            TypeVariant::UInt8 => builder.set_uint8(()),
+            TypeVariant::UInt16 => builder.set_uint16(()),
+            TypeVariant::UInt32 => builder.set_uint32(()),
+            TypeVariant::UInt64 => builder.set_uint64(()),
+            TypeVariant::Float32 => builder.set_float32(()),
+            TypeVariant::Float64 => builder.set_float64(()),
+            TypeVariant::Text => builder.set_text(()),
+            TypeVariant::Data => builder.set_data(()),
+            TypeVariant::List(element) => {
+                element.write_schema_type(builder.init_list().init_element_type())
+            }
+            TypeVariant::Enum(raw) => {
+                let mut e = builder.init_enum();
+                e.set_type_id(crate::schema::EnumSchema::new(raw).get_proto().get_id());
+                e.init_brand();
+            }
+            TypeVariant::Struct(raw) => {
+                let schema = crate::schema::StructSchema::new(raw);
+                let mut s = builder.init_struct();
+                s.set_type_id(schema.get_proto().get_id());
+                let scopes = schema.get_brand_scopes();
+                let mut out = s
+                    .init_brand()
+                    .init_scopes(u32::try_from(scopes.len()).unwrap());
+                for (i, scope) in (0..).zip(scopes) {
+                    let mut out = out.reborrow().get(i);
+                    out.set_scope_id(scope.scope_id());
+                    let mut bind = out.init_bind(scope.param_count().into());
+                    for p in 0..scope.param_count() {
+                        let mut b = bind.reborrow().get(p.into());
+                        match schema.get_brand_binding(scope.scope_id(), p) {
+                            Some(t) => t.write_schema_type(b.init_type()),
+                            None => b.set_unbound(()),
+                        }
+                    }
+                }
+            }
+            TypeVariant::AnyPointer => builder
+                .init_any_pointer()
+                .init_unconstrained()
+                .set_any_kind(()),
+            TypeVariant::Capability => builder
+                .init_any_pointer()
+                .init_unconstrained()
+                .set_capability(()),
+        }
+    }
+
     /// Returns true if `self` is equal to `other` modulo
     /// type parameters and interface types.
     #[deprecated(

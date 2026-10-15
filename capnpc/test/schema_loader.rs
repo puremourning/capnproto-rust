@@ -1348,4 +1348,5 @@ fn name_lookup_ignores_rust_name_annotations() {
     }
 }
 
+mod embedded;
 mod load_compiled;

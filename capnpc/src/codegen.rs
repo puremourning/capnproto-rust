@@ -39,6 +39,7 @@ pub struct CodeGenerationCommand {
     raw_code_generator_request_path: Option<PathBuf>,
     capnp_root: String,
     crates_provide_map: HashMap<u64, String>,
+    embed_schema: bool,
 }
 
 impl Default for CodeGenerationCommand {
@@ -49,6 +50,7 @@ impl Default for CodeGenerationCommand {
             raw_code_generator_request_path: None,
             capnp_root: "::capnp".into(),
             crates_provide_map: HashMap::new(),
+            embed_schema: false,
         }
     }
 }
@@ -108,6 +110,13 @@ impl CodeGenerationCommand {
         self
     }
 
+    /// Whether each generated file also gets `SCHEMA_BYTES`, its schema as a closed, serialized
+    /// `CodeGeneratorRequest`. See [`crate::CompilerCommand::embed_schema`].
+    pub fn embed_schema(&mut self, embed: bool) -> &mut Self {
+        self.embed_schema = embed;
+        self
+    }
+
     /// Generates Rust code according to a `schema_capnp::code_generator_request` read from `inp`.
     pub fn run<T>(&mut self, inp: T) -> ::capnp::Result<()>
     where
@@ -154,6 +163,14 @@ impl CodeGenerationCommand {
                 Line(format!("// capnpc crate version: {}", env!("CARGO_PKG_VERSION"))),
                 BlankLine,
                 generate_node(&ctx, id, &root_name)?,
+                if self.embed_schema {
+                    Branch(vec![
+                        BlankLine,
+                        crate::embedded_schema::generate_embedded_schema(&ctx, requested_file)?,
+                    ])
+                } else {
+                    Branch(Vec::new())
+                },
             ]);
 
             let text = stringify(&lines);

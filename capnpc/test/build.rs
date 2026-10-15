@@ -9,6 +9,7 @@ fn main() {
         .file("schema/test-in-dir.capnp")
         .file("schema-with-src-prefix/test-in-src-prefix-dir.capnp")
         .src_prefix("schema-with-src-prefix")
+        .embed_schema(true)
         .raw_code_generator_request_path(
             std::env::var("OUT_DIR").expect("OUT_DIR env var is not set")
                 + "/raw_code_gen_request.bin",
@@ -35,6 +36,7 @@ fn main() {
     // request of its own, so a test can load it into a fresh loader cheaply.
     capnpc::CompilerCommand::new()
         .file("test-schema-loader-protocol.capnp")
+        .embed_schema(true)
         .raw_code_generator_request_path(format!("{out_dir}/schema-loader-protocol.cgr"))
         .run()
         .expect("compiling schema");
