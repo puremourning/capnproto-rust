@@ -461,6 +461,8 @@ The library gives you id → schema. How a tool learns the id and finds the node
   ```
   The tool reads `Envelope` (compiled), loads `schema` if present, then calls
   `loader.get_struct(typeId)?` and `payload.get_as_dynamic(schema)?`.
+  Sending `schema` with every message is costly, and a `typeId` alone can't name a branded
+  payload. See "Self-describing message streams" below for the alternatives.
 - Later, a `LazyLoadCallback` equivalent (`trait SchemaSource { fn find(&self, id) -> Option<..> }`)
   can be added without API breaks. `load()` would consult it for missing ids before
   rejecting the batch, so the "complete at load" rule still holds.
@@ -578,3 +580,140 @@ TODO (deferred, 2026-10-15):
   `SCHEMA_BYTES` (a `CodeGeneratorRequest`). `Type::write_schema_type` encodes a branded type
   for the receiver's `get_type`. The bytes live in a `foo_capnp_schema.cgr` side file that the
   generated code `include_bytes!`s, word-aligned through `capnp::private::AlignedBytes`.
+
+## Self-describing message streams (discussion, 2026-10-16)
+
+The question: a tool without generated code reads a stream of messages, each an envelope around
+an application payload. How can each message describe itself, without carrying its schema
+every time? Nothing here is implemented beyond `SCHEMA_BYTES` and `Type::write_schema_type`.
+
+### What the reader needs
+
+1. **The nodes**: a closed set the loader accepts, such as a `SCHEMA_BYTES`.
+2. **The payload's type**: a struct ID, plus its brand if the struct is generic. With an
+   unbound parameter, those fields read as `AnyPointer`.
+
+Sending the nodes with every message is what §7's `schema :List(Schema.Node)` field does. It
+doesn't scale:
+
+| Schema | `SCHEMA_BYTES` | packed |
+|---|---|---|
+| `test-schema-loader-protocol.capnp` | 7,848 B | 3,539 B |
+| `test.capnp` | 132,520 B | 53,956 B |
+
+So the schema should travel once, or be fetched by reference. The type is the part each message
+has to identify.
+
+### Cost of a `Schema.Type`
+
+Struct sizes from `capnp compile -ocapnp capnp/schema.capnp`:
+- `Type`: 32 bytes + 1 pointer, so 5 words;
+- `Brand`: 0 bytes + 1 pointer, so 1 word;
+- `Brand.Scope`: 16 bytes + 1 pointer, so 3 words;
+- `Brand.Binding`: 8 bytes + 1 pointer, so 2 words.
+
+Each struct list adds a 1-word tag. Measured with `write_schema_type` on the protocol test
+schema:
+
+| Type | as a field | own message | packed |
+|---|---|---|---|
+| `Text` | 5 w (40 B) | 56 B | 9 B |
+| enum `Kind` | 6 w (48 B) | 64 B | 23 B |
+| plain struct `Envelope` | 7 w (56 B) | 72 B | 27 B |
+| `List(Kind)` | 11 w (88 B) | 104 B | 30 B |
+| `Request(Text)` | 18 w (144 B) | 160 B | 56 B |
+| `Outer(Text).Inner(Data)` | 29 w (232 B) | 248 B | 82 B |
+| `Message(Request(Text))` | 31 w (248 B) | 264 B | 103 B |
+| `List(Message(Request(Text)))` | 36 w (288 B) | 304 B | 110 B |
+
+- "As a field" is the size inside an envelope, excluding the pointer to it.
+- "Own message" adds the 8-byte segment table and the root pointer.
+
+The sizes follow a formula:
+- **Base:** a type costs 5 words.
+- **A branded struct** adds 1 word for its `Brand` and 1 for the scope-list tag.
+- **Each scope** adds 3 words plus a 1-word bind-list tag.
+- **Each binding** adds 2 words plus the bound type.
+
+So each level of generic nesting with one parameter costs 13 words (104 B). Unpacked, that is
+larger than most small payloads. It packs to roughly 40%, since it is mostly IDs and zeros.
+
+`write_schema_type` writes an empty `Brand` for every struct and enum. That costs 1–2 words per
+type that nothing binds. Leaving the brand pointer null would bring a plain struct down to
+5 words. That is untested: `get_type` would need to treat a null brand as empty.
+
+**CPU cost** (release build, this machine, rough):
+
+| Operation | Time |
+|---|---|
+| `write_schema_type` into a new message | 0.2–0.35 µs |
+| Read + `get_type`, plain struct | 0.2 µs |
+| Read + `get_type`, `Outer(Text).Inner(Data)` | 0.4 µs |
+| Read + `get_type`, `Message(Request(Text))` | 0.6 µs |
+| `get_struct(id)` | 0.05 µs |
+| Load protocol `SCHEMA_BYTES` into a fresh loader | 32 µs |
+| Load `test.capnp`'s `SCHEMA_BYTES` | 445 µs |
+
+`get_type` interns brands, so repeated resolution of one type doesn't grow the loader, but it
+re-walks the message each time. A reader would cache a resolved `Type` (it is `Copy + Hash`)
+under whatever key the message carries.
+
+### Ways to identify the type per message
+
+1. **A bare struct ID** (`UInt64`, 8 B, 0.05 µs). This is enough when no payload is generic, or
+   when the generic's brand is fixed by convention. It fails for branded payloads.
+2. **An inline `Schema.Type`** (40–290 B, 0.2–0.6 µs). This is fully general and needs no state
+   beyond the nodes. It suits low-rate streams, or as the fallback form for the others.
+3. **An index into a type table** (`UInt16`/`UInt32`, which usually fits in the envelope's
+   existing data section, so effectively 0 B).
+   - The stream header carries `types :List(Schema.Type)` once. The reader resolves each entry
+     once and stores the result in a `Vec<Type>`.
+   - This is the cheapest option, and the route resolver from earlier (`List(Route { uri, verb,
+     type :Schema.Type })`) has the same shape.
+   - The cost is that indices only mean something within one stream or session. A reader can't
+     start mid-stream, and two streams can't be concatenated without renumbering.
+4. **A hash of the canonical `Schema.Type`** (`UInt64`, 8 B). The key would be computed from
+   `message::Reader::canonicalize` of the type, which is stable for a given type.
+   - A catalogue maps the hash to the `Schema.Type`. The reader caches by hash after the first
+     lookup.
+   - Messages stay self-describing *by reference*, independent of their position in the stream.
+   - The catalogue must be reachable or preloaded, and a collision gives a wrong type, not an
+     error. 64 bits is ample for any realistic catalogue, but the reader should still check the
+     resolved type against an expected one where it can.
+
+### Ways to identify the schema
+
+- **A preamble:** the stream starts with the `SCHEMA_BYTES` it uses. This suits files, pipes and
+  single connections. It has the same mid-stream limitation as the type table, and pairs
+  naturally with option 3.
+- **By reference:** a stream header or envelope carries a schema reference, and a catalogue
+  serves the bytes. This pairs with option 4. Candidates for the reference:
+  - **The file ID:** stable, but not a version. The same ID covers every edit of the file, so a
+    reader can't tell whether it holds the right nodes.
+  - **A content hash of `SCHEMA_BYTES`:** identifies exact contents. However, the bytes depend
+    on the build as well as the schema:
+    - each node's `displayName` is the path as given to `capnp compile`, after `src_prefix`;
+    - `requestedFiles` records file names, and `capnpVersion` is included too.
+    So two builds of one schema can hash differently. Worse, the loader rejects a reload whose
+    node bytes differ, so it treats them as conflicting. Producers should compile shared schemas
+    the same way. Alternatively, a hash could cover the nodes with `displayName` and source
+    info normalised; that is unimplemented, and the loader's identical-bytes rule would need
+    the same normalisation.
+- **Loading on a miss:** §7's `SchemaSource` hook lets the loader ask the catalogue for missing
+  IDs. Combined with option 1 or 4, a reader then needs no preamble at all.
+
+### Recommendation
+
+- **Single stream or connection:** a header of `{ schemas :List(Data), types :List(Schema.Type)
+  }`, then per-message `{ type :UInt16, payload :AnyPointer }`. Option 2 can serve as an escape
+  hatch for types added mid-stream.
+- **Long-lived or multi-producer systems with a catalogue:** each message carries `{ typeHash
+  :UInt64, payload :AnyPointer }`. The catalogue maps type hashes to `Schema.Type`s and the
+  schemas they need, keyed by content hash, and the reader caches both. This is 8 bytes per
+  message and self-describing by reference.
+
+Code this would need:
+- an optional null brand in `write_schema_type`;
+- a helper computing a type's canonical hash;
+- the `SchemaSource` lazy-load hook;
+- if schema hashes should survive different build paths, a normalised node hash.
