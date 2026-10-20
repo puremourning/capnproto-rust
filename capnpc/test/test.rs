@@ -48,6 +48,7 @@ pub mod test_default_parent_module {
 
 capnp::generated_code!(pub mod test_newtype_capnp);
 capnp::generated_code!(pub mod test_newtype_import_capnp);
+capnp::generated_code!(pub mod test_external_newtype_capnp);
 capnp::generated_code!(pub mod test_newtype_evolution_v1_capnp);
 capnp::generated_code!(pub mod test_newtype_evolution_v2_capnp);
 

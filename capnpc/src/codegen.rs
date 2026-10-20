@@ -288,6 +288,32 @@ impl<'a> GeneratorContext<'a> {
                 id,
             )?;
         }
+
+        // A file another crate provides can be needed without being imported by any requested
+        // file: a newtype from one provided file can carry an annotation whose type is declared
+        // in a second one, and every field declared with the newtype names that type. Its
+        // module lives in the providing crate either way.
+        for node in ctx.request.get_nodes()? {
+            let id = node.get_id();
+            if !matches!(node.which()?, schema_capnp::node::File(()))
+                || ctx.scope_map.contains_key(&id)
+            {
+                continue;
+            }
+            let Some(krate) = crates_provide.get(&id) else {
+                continue;
+            };
+            let root_name = format!(
+                "{}_capnp",
+                path_to_stem_string(node.get_display_name()?.to_str()?)?.replace('-', "_")
+            );
+            ctx.populate_scope_map(
+                vec![format!("::{krate}")],
+                root_name,
+                NameKind::Verbatim,
+                id,
+            )?;
+        }
         Ok(ctx)
     }
 

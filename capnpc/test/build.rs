@@ -16,6 +16,15 @@ fn main() {
         .run()
         .expect("compiling schema");
 
+    // A file that reaches another crate's annotation only through that crate's newtype. It
+    // runs alone: the type names a run can use are shared by all its files, and test.capnp
+    // imports the annotation's file directly.
+    capnpc::CompilerCommand::new()
+        .crate_provides("external_crate", [0xe6f94f52f7be8fe2, 0xd7e863a77bb1f889])
+        .file("test-external-newtype.capnp")
+        .run()
+        .expect("compiling schema");
+
     // Two versions of an evolving newtype schema, for the cross-version tests in
     // newtype_evolution.rs. Their newtypes share ids, so each needs a run of its own.
     for file in [
