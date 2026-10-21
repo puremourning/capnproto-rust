@@ -30,6 +30,7 @@ members = [
     "capnp-rpc/test",
     "example/addressbook",
     "example/addressbook_send",
+    "example/dynamic-dump",
     "example/fill_random_values",
 ]
 default-members = [

@@ -583,3 +583,271 @@ fn field_from_differently_branded_schema_panics() {
 
     let _ = dynamic.get(field);
 }
+
+fn struct_schema<T: capnp::introspect::Introspect>() -> capnp::schema::StructSchema {
+    use capnp::introspect::TypeVariant;
+    let TypeVariant::Struct(raw) = T::introspect().which() else {
+        panic!("not a struct type");
+    };
+    capnp::schema::StructSchema::new(raw)
+}
+
+// Fills `builder` through the pre-existing typed-to-dynamic conversion, independently of the
+// dynamic entry points under test.
+fn dynamic_init_typed(builder: test_all_types::Builder<'_>) {
+    let builder: dynamic_value::Builder<'_> = builder.into();
+    test_util::dynamic_init_test_message(builder.downcast());
+}
+
+// Checks `reader` (written by `dynamic_init_test_message`) through typed code: the typed reader
+// is converted to a dynamic one only by the pre-existing typed-to-dynamic conversion.
+fn dynamic_check_typed(reader: test_all_types::Reader<'_>) {
+    assert_eq!(reader.get_int8_field(), -123);
+    assert_eq!(reader.get_text_field().unwrap(), "foo");
+    let reader: dynamic_value::Reader<'_> = reader.into();
+    test_util::dynamic_check_test_message(reader.downcast());
+}
+
+#[test]
+fn test_message_reader_get_root_as_dynamic() {
+    use crate::test_util::CheckTestMessage;
+    use capnp::serialize;
+
+    let schema = struct_schema::<test_all_types::Owned>();
+
+    // Written by typed code, read dynamically.
+    let mut builder = message::Builder::new_default();
+    test_util::init_test_message(builder.init_root());
+    let words = serialize::write_message_to_words(&builder);
+    let reader = serialize::read_message(&words[..], message::ReaderOptions::new()).unwrap();
+    let dynamic = reader.get_root_as_dynamic(schema).unwrap();
+    assert_eq!(dynamic.get_schema(), schema);
+    assert_eq!(
+        dynamic.get_named("int16Field").unwrap().downcast::<i16>(),
+        -12345
+    );
+    let text: capnp::text::Reader<'_> = dynamic.get_named("textField").unwrap().downcast();
+    assert_eq!(text, "foo");
+    let typed: test_all_types::Reader<'_> = reader.get_root().unwrap();
+    assert_eq!(format!("{dynamic:?}"), format!("{typed:?}"));
+    // The dynamic reader downcasts back to the compiled type.
+    CheckTestMessage::check_test_message(dynamic.downcast::<test_all_types::Owned>());
+
+    // Every field kind, as written by `dynamic_init_test_message`.
+    let mut builder = message::Builder::new_default();
+    dynamic_init_typed(builder.init_root());
+    let words = serialize::write_message_to_words(&builder);
+    let reader = serialize::read_message(&words[..], message::ReaderOptions::new()).unwrap();
+    let dynamic = reader.get_root_as_dynamic(schema).unwrap();
+    test_util::dynamic_check_test_message(dynamic);
+    let typed: test_all_types::Reader<'_> = reader.get_root().unwrap();
+    assert_eq!(format!("{dynamic:?}"), format!("{typed:?}"));
+}
+
+#[test]
+fn test_message_builder_init_root_dynamic() {
+    let schema = struct_schema::<test_all_types::Owned>();
+    let mut builder = message::Builder::new_default();
+    let root = builder.init_root_dynamic(schema).unwrap();
+    assert_eq!(root.get_schema(), schema);
+    test_util::dynamic_init_test_message(root);
+    let typed = builder
+        .get_root_as_reader::<test_all_types::Reader<'_>>()
+        .unwrap();
+    dynamic_check_typed(typed);
+
+    // Same contents as a message built through the typed root.
+    let mut expected = message::Builder::new_default();
+    dynamic_init_typed(expected.init_root());
+    let expected = expected
+        .get_root_as_reader::<test_all_types::Reader<'_>>()
+        .unwrap();
+    assert_eq!(format!("{typed:?}"), format!("{expected:?}"));
+
+    // init_root_dynamic clears whatever was there before.
+    let root = builder.init_root_dynamic(schema).unwrap();
+    let empty = message::Builder::new_default();
+    let empty = empty
+        .get_root_as_reader::<test_all_types::Reader<'_>>()
+        .unwrap();
+    assert_eq!(format!("{:?}", root.into_reader()), format!("{empty:?}"));
+}
+
+#[test]
+fn test_message_builder_get_root_as_dynamic() {
+    // An empty message reads as defaults.
+    let mut builder = message::Builder::new_default();
+    let root = builder
+        .get_root_as_dynamic(struct_schema::<test_defaults::Owned>())
+        .unwrap();
+    test_util::dynamic_check_test_message_builder(root);
+
+    // A typed root is visible, and modifiable, through the dynamic builder.
+    let mut builder = message::Builder::new_default();
+    dynamic_init_typed(builder.init_root());
+    let mut root = builder
+        .get_root_as_dynamic(struct_schema::<test_all_types::Owned>())
+        .unwrap();
+    test_util::dynamic_check_test_message_builder(root.reborrow());
+    root.set_named("int32Field", 42i32.into()).unwrap();
+    root.set_named("textField", "changed".into()).unwrap();
+    let typed = builder
+        .get_root_as_reader::<test_all_types::Reader<'_>>()
+        .unwrap();
+    assert_eq!(typed.get_int32_field(), 42);
+    assert_eq!(typed.get_text_field().unwrap(), "changed");
+    assert_eq!(typed.get_int8_field(), -123);
+}
+
+#[test]
+fn test_any_pointer_get_as_dynamic() {
+    use crate::test_capnp::test_any_pointer;
+
+    let schema = struct_schema::<test_all_types::Owned>();
+    let mut builder = message::Builder::new_default();
+    let mut root: test_any_pointer::Builder<'_> = builder.init_root();
+
+    // A null pointer reads as the default struct.
+    let null = root.reborrow_as_reader().get_any_pointer_field();
+    let dynamic = null.get_as_dynamic(schema).unwrap();
+    assert_eq!(
+        dynamic.get_named("int32Field").unwrap().downcast::<i32>(),
+        0
+    );
+
+    dynamic_init_typed(root.reborrow().get_any_pointer_field().init_as());
+    let any = root.reborrow_as_reader().get_any_pointer_field();
+    let dynamic = any.get_as_dynamic(schema).unwrap();
+    test_util::dynamic_check_test_message(dynamic);
+    assert_eq!(
+        format!("{dynamic:?}"),
+        format!("{:?}", any.get_as::<test_all_types::Reader<'_>>().unwrap())
+    );
+
+    // Builder side: get the existing struct and modify it.
+    let mut dynamic = root
+        .reborrow()
+        .get_any_pointer_field()
+        .get_as_dynamic(schema)
+        .unwrap();
+    test_util::dynamic_check_test_message_builder(dynamic.reborrow());
+    dynamic.set_named("uInt16Field", 7u16.into()).unwrap();
+    let typed: test_all_types::Reader<'_> = root
+        .reborrow_as_reader()
+        .get_any_pointer_field()
+        .get_as()
+        .unwrap();
+    assert_eq!(typed.get_u_int16_field(), 7);
+    assert_eq!(typed.get_int8_field(), -123);
+
+    // init_dynamic replaces the target with a fresh struct.
+    let dynamic = root
+        .reborrow()
+        .get_any_pointer_field()
+        .init_dynamic(schema)
+        .unwrap();
+    assert_eq!(
+        dynamic
+            .reborrow_as_reader()
+            .get_named("int8Field")
+            .unwrap()
+            .downcast::<i8>(),
+        0
+    );
+    test_util::dynamic_init_test_message(dynamic);
+    dynamic_check_typed(
+        root.reborrow_as_reader()
+            .get_any_pointer_field()
+            .get_as()
+            .unwrap(),
+    );
+}
+
+#[test]
+fn test_any_pointer_get_as_dynamic_not_a_struct() {
+    use crate::test_capnp::test_any_pointer;
+
+    let schema = struct_schema::<test_all_types::Owned>();
+    let mut builder = message::Builder::new_default();
+    let mut root: test_any_pointer::Builder<'_> = builder.init_root();
+    root.reborrow()
+        .get_any_pointer_field()
+        .set_as::<capnp::text::Owned>("not a struct")
+        .unwrap();
+    assert!(root
+        .reborrow_as_reader()
+        .get_any_pointer_field()
+        .get_as_dynamic(schema)
+        .is_err());
+    assert!(root.get_any_pointer_field().get_as_dynamic(schema).is_err());
+}
+
+#[test]
+fn find_field_by_name_uses_schema_names() {
+    // `MEMBERS_BY_NAME` must be sorted by the schema name (what `find_field_by_name` searches),
+    // not by the `$Rust.name` annotation.
+    use crate::test_capnp::renamed_struct;
+    use capnp::introspect::{Introspect, TypeVariant};
+    use capnp::schema::{EnumSchema, StructSchema};
+
+    fn check(schema: StructSchema, visited: &mut Vec<u64>) {
+        let id = schema.get_proto().get_id();
+        if visited.contains(&id) {
+            return;
+        }
+        visited.push(id);
+        for field in schema.get_fields().unwrap() {
+            let name = field.get_proto().get_name().unwrap().to_str().unwrap();
+            assert_eq!(
+                schema.find_field_by_name(name).unwrap(),
+                Some(field),
+                "{name}"
+            );
+            if let TypeVariant::Struct(st) = field.get_type().which() {
+                check(st.into(), visited);
+            }
+        }
+    }
+
+    let TypeVariant::Struct(st) = renamed_struct::Owned::introspect().which() else {
+        panic!("not a struct");
+    };
+    let schema: StructSchema = st.into();
+    let mut visited = Vec::new();
+    check(schema, &mut visited);
+    // RenamedStruct, renamedUnion, renamedGroup and RenamedNestedStruct.
+    assert_eq!(visited.len(), 4);
+
+    // `$Rust.name`s are not schema names.
+    for rust_name in ["goodFieldName", "anotherGoodFieldName", "renamedUnion"] {
+        assert!(schema.find_field_by_name(rust_name).unwrap().is_none());
+    }
+    let TypeVariant::Struct(st) = schema
+        .get_field_by_name("badlyNamedUnion")
+        .unwrap()
+        .get_type()
+        .which()
+    else {
+        panic!("not a group");
+    };
+    let union_schema: StructSchema = st.into();
+    assert!(union_schema.find_field_by_name("qux").unwrap().is_none());
+    assert!(union_schema.find_field_by_name("baz").unwrap().is_some());
+
+    // Enumerants of the renamed enum keep their schema names too.
+    let TypeVariant::Enum(e) = schema
+        .get_field_by_name("anotherBadFieldName")
+        .unwrap()
+        .get_type()
+        .which()
+    else {
+        panic!("not an enum");
+    };
+    let names: Vec<&str> = EnumSchema::new(e)
+        .get_enumerants()
+        .unwrap()
+        .iter()
+        .map(|e| e.get_proto().get_name().unwrap().to_str().unwrap())
+        .collect();
+    assert_eq!(names, ["foo", "bar", "baz"]);
+}

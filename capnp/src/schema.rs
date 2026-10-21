@@ -1,7 +1,7 @@
 //! Convenience wrappers of the datatypes defined in schema.capnp.
 
 use crate::dynamic_value;
-use crate::introspect::{self, RawBrandedStructSchema, RawEnumSchema};
+use crate::introspect::{self, AnnotationSource, RawBrandedStructSchema, RawEnumSchema};
 use crate::private::layout;
 use crate::schema_capnp::{annotation, enumerant, field, node};
 use crate::struct_list;
@@ -38,6 +38,38 @@ impl StructSchema {
     /// `vec3::AnyReader` (or `AnyBuilder`).
     pub fn get_newtype_ids(&self) -> &'static [u64] {
         self.raw.generic.newtype_ids
+    }
+
+    /// The type bound to parameter `index` of the generic scope `scope_id`,
+    /// in the branding this schema describes, or `None` if this struct has
+    /// no such parameter in scope.
+    ///
+    /// `scope_id` is the id of the node declaring the parameter: this
+    /// struct itself, or an enclosing generic struct (or interface, for a
+    /// method's parameter or result struct). With
+    /// `struct Outer(T) { struct Inner(U) { .. } }`, the schema of
+    /// `Outer(Text).Inner(Data)` gives `Text` for `(Outer's id, 0)` and
+    /// `Data` for `(Inner's id, 0)`. A group binds the same parameters as
+    /// its enclosing struct. A parameter left unbound reads as `AnyPointer`.
+    ///
+    /// Bindings tell apart instantiations that differ only in a parameter
+    /// no field uses: `Foo(Text)` and `Foo(Data)` give different bindings.
+    /// [`get_brand_scopes`](Self::get_brand_scopes) enumerates the valid
+    /// `(scope_id, index)` pairs.
+    pub fn get_brand_binding(&self, scope_id: u64, index: u16) -> Option<introspect::Type> {
+        self.raw.brand_binding(scope_id, index)
+    }
+
+    /// The generic scopes whose parameters this struct binds, outermost
+    /// first; see [`get_brand_binding`](Self::get_brand_binding). Only
+    /// scopes that declare parameters are listed, so this is empty for a
+    /// struct with no generic parameters in scope.
+    ///
+    /// Scopes are a property of the struct's declaration, not of its
+    /// branding: every instantiation of a generic struct gives the same
+    /// list.
+    pub fn get_brand_scopes(&self) -> &'static [introspect::BrandScope] {
+        self.raw.generic.brand_scopes
     }
 
     pub fn get_fields(self) -> crate::Result<FieldList> {
@@ -124,7 +156,7 @@ impl StructSchema {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: None,
-            get_annotation_type: self.raw.annotation_types,
+            source: self.raw.annotation_source(),
         })
     }
 }
@@ -154,7 +186,7 @@ impl ::core::fmt::Debug for StructSchema {
         // Two schemas with the same display name are unequal if their brandings
         // differ, so also include the type id.
         match self.proto.get_display_name().map(|n| n.to_str()) {
-            Ok(Ok(name)) => write!(f, "StructSchema({name}, {:?})", self.raw.type_id),
+            Ok(Ok(name)) => write!(f, "StructSchema({name}, {:?})", self.raw.brand),
             _ => write!(f, "StructSchema({:?})", self.raw),
         }
     }
@@ -186,7 +218,7 @@ impl Field {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: Some(self.index),
-            get_annotation_type: self.parent.raw.annotation_types,
+            source: self.parent.raw.annotation_source(),
         })
     }
 
@@ -258,7 +290,7 @@ impl FieldList {
         Field {
             proto: self.fields.get(index as u32),
             index,
-            ty: (self.parent.raw.field_types)(index),
+            ty: self.parent.raw.field_type(index),
             parent: self.parent,
         }
     }
@@ -305,7 +337,7 @@ impl FieldSubset {
         Field {
             proto: self.fields.get(index as u32),
             index,
-            ty: (self.parent.raw.field_types)(index),
+            ty: self.parent.raw.field_type(index),
             parent: self.parent,
         }
     }
@@ -366,7 +398,7 @@ impl EnumSchema {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: None,
-            get_annotation_type: self.raw.annotation_types,
+            source: self.raw.annotations,
         })
     }
 }
@@ -425,7 +457,7 @@ impl Enumerant {
         Ok(AnnotationList {
             annotations: self.proto.get_annotations()?,
             child_index: Some(self.ordinal),
-            get_annotation_type: self.parent.raw.annotation_types,
+            source: self.parent.raw.annotations,
         })
     }
 }
@@ -525,7 +557,7 @@ impl Annotation {
 pub struct AnnotationList {
     annotations: struct_list::Reader<'static, annotation::Owned>,
     child_index: Option<u16>,
-    get_annotation_type: fn(Option<u16>, u32) -> introspect::Type,
+    source: AnnotationSource,
 }
 
 impl AnnotationList {
@@ -539,7 +571,7 @@ impl AnnotationList {
 
     pub fn get(self, index: u32) -> Annotation {
         let proto = self.annotations.get(index);
-        let ty = (self.get_annotation_type)(self.child_index, index);
+        let ty = self.source.get(self.child_index, index);
         Annotation { proto, ty }
     }
 
@@ -679,6 +711,19 @@ mod tests {
         assert_eq!(node_schema, node_schema);
         assert_eq!(cgr_schema, cgr_schema);
         assert_ne!(node_schema, cgr_schema);
+    }
+
+    #[test]
+    fn non_generic_schema_has_no_brand_bindings() {
+        let crate::introspect::TypeVariant::Struct(schema) =
+            crate::schema_capnp::node::Owned::introspect().which()
+        else {
+            panic!("Expected a struct schema");
+        };
+        let schema = crate::schema::StructSchema::new(schema);
+        assert!(schema.get_brand_scopes().is_empty());
+        let id = schema.get_proto().get_id();
+        assert_eq!(schema.get_brand_binding(id, 0), None);
     }
 
     #[test]

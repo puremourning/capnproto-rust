@@ -106,6 +106,98 @@ impl Type {
         }
     }
 
+    /// Whether a value of type `self` can be downcast to `target`, as
+    /// `dynamic_struct::Reader::downcast` and the list downcasts check.
+    ///
+    /// This holds when the types are equal, and also when `self` comes from a
+    /// [`crate::schema_loader::SchemaLoader`] and `target` is a compiled type the loader
+    /// was told about with [`load_compiled`](crate::schema_loader::SchemaLoader::load_compiled):
+    /// - a loaded struct is usable as a compiled struct if it has the same node id, the
+    ///   loader found the two nodes compatible, and every brand binding of the loaded
+    ///   struct is usable as the compiled struct's binding for the same parameter;
+    /// - a loaded enum is usable as a compiled enum with the same id that the loader
+    ///   found compatible;
+    /// - `List(a)` is usable as `List(b)` if `a` is usable as `b`.
+    ///
+    /// Every other pair is usable only if equal. The relation is not symmetric: a compiled
+    /// type is never usable as a loaded one.
+    pub fn usable_as(self, target: Type) -> bool {
+        if self == target {
+            return true;
+        }
+        match (self.which(), target.which()) {
+            (TypeVariant::List(a), TypeVariant::List(b)) => a.usable_as(b),
+            (TypeVariant::Struct(a), TypeVariant::Struct(b)) => a.usable_as(b),
+            (TypeVariant::Enum(a), TypeVariant::Enum(b)) => a.usable_as(b),
+            _ => false,
+        }
+    }
+
+    /// Writes `self` as a schema.capnp `Type`, with every brand binding spelled out, so it can
+    /// be sent to another process: there,
+    /// [`SchemaLoader::get_type`](crate::schema_loader::SchemaLoader::get_type) resolves it
+    /// (with no scope) once the nodes it names are loaded, for example from a generated file's
+    /// `SCHEMA_BYTES` (`capnpc::CompilerCommand::embed_schema`). This is how to send a branded
+    /// type such as `Request(NewOrderSingle(Foo))`, which no single node id names.
+    ///
+    /// A capability is written as an unconstrained capability `AnyPointer`: `Type` doesn't
+    /// record which interface it is.
+    pub fn write_schema_type(self, mut builder: crate::schema_capnp::type_::Builder<'_>) {
+        match self.which() {
+            TypeVariant::Void => builder.set_void(()),
+            TypeVariant::Bool => builder.set_bool(()),
+            TypeVariant::Int8 => builder.set_int8(()),
+            TypeVariant::Int16 => builder.set_int16(()),
+            TypeVariant::Int32 => builder.set_int32(()),
+            TypeVariant::Int64 => builder.set_int64(()),
+            TypeVariant::UInt8 => builder.set_uint8(()),
+            TypeVariant::UInt16 => builder.set_uint16(()),
+            TypeVariant::UInt32 => builder.set_uint32(()),
+            TypeVariant::UInt64 => builder.set_uint64(()),
+            TypeVariant::Float32 => builder.set_float32(()),
+            TypeVariant::Float64 => builder.set_float64(()),
+            TypeVariant::Text => builder.set_text(()),
+            TypeVariant::Data => builder.set_data(()),
+            TypeVariant::List(element) => {
+                element.write_schema_type(builder.init_list().init_element_type())
+            }
+            TypeVariant::Enum(raw) => {
+                let mut e = builder.init_enum();
+                e.set_type_id(crate::schema::EnumSchema::new(raw).get_proto().get_id());
+                e.init_brand();
+            }
+            TypeVariant::Struct(raw) => {
+                let schema = crate::schema::StructSchema::new(raw);
+                let mut s = builder.init_struct();
+                s.set_type_id(schema.get_proto().get_id());
+                let scopes = schema.get_brand_scopes();
+                let mut out = s
+                    .init_brand()
+                    .init_scopes(u32::try_from(scopes.len()).unwrap());
+                for (i, scope) in (0..).zip(scopes) {
+                    let mut out = out.reborrow().get(i);
+                    out.set_scope_id(scope.scope_id());
+                    let mut bind = out.init_bind(scope.param_count().into());
+                    for p in 0..scope.param_count() {
+                        let mut b = bind.reborrow().get(p.into());
+                        match schema.get_brand_binding(scope.scope_id(), p) {
+                            Some(t) => t.write_schema_type(b.init_type()),
+                            None => b.set_unbound(()),
+                        }
+                    }
+                }
+            }
+            TypeVariant::AnyPointer => builder
+                .init_any_pointer()
+                .init_unconstrained()
+                .set_any_kind(()),
+            TypeVariant::Capability => builder
+                .init_any_pointer()
+                .init_unconstrained()
+                .set_capability(()),
+        }
+    }
+
     /// Returns true if `self` is equal to `other` modulo
     /// type parameters and interface types.
     #[deprecated(
@@ -273,6 +365,42 @@ pub struct RawStructSchema {
     /// the parent. This is the table the generated `as_any()` hands to
     /// `AnyReader::new`.
     pub(crate) any_table: Option<&'static crate::traits::UseSiteTable<'static>>,
+
+    /// The brand scopes whose parameters this struct's schema binds,
+    /// outermost first. Empty for a struct with no generic parameters in
+    /// scope.
+    pub(crate) brand_scopes: &'static [BrandScope],
+}
+
+/// A generic scope whose parameters a struct schema binds: either the
+/// struct itself or one of its enclosing generic structs or interfaces.
+///
+/// See [`crate::schema::StructSchema::get_brand_scopes`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct BrandScope {
+    scope_id: u64,
+    param_count: u16,
+}
+
+impl BrandScope {
+    /// Constructs a new `BrandScope`. Intended to be called by generated code.
+    pub const fn new(scope_id: u64, param_count: u16) -> Self {
+        Self {
+            scope_id,
+            param_count,
+        }
+    }
+
+    /// The id of the node that declares the parameters.
+    pub fn scope_id(&self) -> u64 {
+        self.scope_id
+    }
+
+    /// The number of parameters the node declares. Their bindings are at
+    /// indices `0..param_count`.
+    pub fn param_count(&self) -> u16 {
+        self.param_count
+    }
 }
 
 impl RawStructSchema {
@@ -291,12 +419,19 @@ impl RawStructSchema {
             field_newtypes: &[],
             newtype_ids: &[],
             any_table: None,
+            brand_scopes: &[],
         }
     }
 
     /// Sets the per-field newtype ids; see [`crate::schema::Field::get_newtype_ids`].
     pub const fn with_field_newtypes(mut self, field_newtypes: &'static [&'static [u64]]) -> Self {
         self.field_newtypes = field_newtypes;
+        self
+    }
+
+    /// Sets the brand scopes; see [`crate::schema::StructSchema::get_brand_scopes`].
+    pub const fn with_brand_scopes(mut self, brand_scopes: &'static [BrandScope]) -> Self {
+        self.brand_scopes = brand_scopes;
         self
     }
 
@@ -322,27 +457,152 @@ pub struct RawBrandedStructSchema {
     /// The unbranded base schema.
     pub generic: &'static RawStructSchema,
 
-    /// Map from field index (not ordinal) to Type.
-    pub field_types: fn(u16) -> Type,
+    /// Where the branded information (field types, annotation types,
+    /// brand bindings and identity) comes from.
+    pub(crate) brand: StructBrand,
+}
 
-    /// Map from (maybe field index, annotation index) to the Type
-    /// of the value held by that annotation.
-    pub annotation_types: fn(Option<u16>, u32) -> Type,
+/// The source of a [`RawBrandedStructSchema`]'s branding: generated code, or
+/// a [`crate::schema_loader::SchemaLoader`].
+#[derive(Copy, Clone)]
+pub(crate) enum StructBrand {
+    /// A schema generated by capnpc. Branding lives in Rust's
+    /// monomorphisation: each instantiation has its own fn pointers.
+    Compiled {
+        /// Map from field index (not ordinal) to Type.
+        field_types: fn(u16) -> Type,
 
-    /// Used to compare schemas at runtime - the TypeId of the Owned struct that
-    /// this schema describes, including its branding.
-    pub type_id: ::core::any::TypeId,
+        /// Map from (maybe field index, annotation index) to the Type
+        /// of the value held by that annotation.
+        annotation_types: fn(Option<u16>, u32) -> Type,
+
+        /// Map from (scope id, parameter index) to the Type bound to that
+        /// brand parameter, or `None` if this struct has no such parameter.
+        brand_binding: fn(u64, u16) -> Option<Type>,
+
+        /// Used to compare schemas at runtime - the TypeId of the Owned struct that
+        /// this schema describes, including its branding.
+        type_id: ::core::any::TypeId,
+    },
+
+    /// A schema loaded at run time. Its identity is the address of the
+    /// interned brand instance, so two lookups of the same instantiation in
+    /// one loader are equal, and nothing else is.
+    #[cfg(all(feature = "std", feature = "alloc"))]
+    Loaded(crate::schema_loader::BrandRef),
+}
+
+impl RawBrandedStructSchema {
+    /// Constructs the schema of a compiled-in struct. Intended to be called by
+    /// generated code.
+    pub fn compiled(
+        generic: &'static RawStructSchema,
+        field_types: fn(u16) -> Type,
+        annotation_types: fn(Option<u16>, u32) -> Type,
+        brand_binding: fn(u64, u16) -> Option<Type>,
+        type_id: ::core::any::TypeId,
+    ) -> Self {
+        Self {
+            generic,
+            brand: StructBrand::Compiled {
+                field_types,
+                annotation_types,
+                brand_binding,
+                type_id,
+            },
+        }
+    }
+
+    /// The type of the field at `index` (not ordinal).
+    pub(crate) fn field_type(&self, index: u16) -> Type {
+        match self.brand {
+            StructBrand::Compiled { field_types, .. } => field_types(index),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(brand) => brand.get().field_type(index),
+        }
+    }
+
+    /// The type bound to parameter `index` of brand scope `scope_id`.
+    pub(crate) fn brand_binding(&self, scope_id: u64, index: u16) -> Option<Type> {
+        match self.brand {
+            StructBrand::Compiled { brand_binding, .. } => brand_binding(scope_id, index),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(brand) => brand.get().brand_binding(scope_id, index),
+        }
+    }
+
+    /// Where this struct's annotation types come from: the type of the
+    /// value of annotation `i` on the struct itself is
+    /// `annotation_source().get(None, i)`, and on field `f` it is
+    /// `annotation_source().get(Some(f), i)`.
+    pub(crate) fn annotation_source(&self) -> AnnotationSource {
+        match self.brand {
+            StructBrand::Compiled {
+                annotation_types, ..
+            } => AnnotationSource::Compiled(annotation_types),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(brand) => AnnotationSource::Loaded(brand),
+        }
+    }
+
+    /// See [`Type::usable_as`].
+    pub(crate) fn usable_as(self, target: Self) -> bool {
+        if self == target {
+            return true;
+        }
+        match (self.brand, target.brand) {
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            (StructBrand::Loaded(brand), StructBrand::Compiled { type_id, .. }) => {
+                brand.get().usable_as(target, type_id)
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether this schema was loaded at run time by a
+    /// [`crate::schema_loader::SchemaLoader`], rather than generated by capnpc.
+    pub fn is_loaded(&self) -> bool {
+        match self.brand {
+            StructBrand::Compiled { .. } => false,
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(_) => true,
+        }
+    }
 }
 
 impl ::core::cmp::PartialEq for RawBrandedStructSchema {
     fn eq(&self, other: &Self) -> bool {
-        self.type_id == other.type_id
+        match (&self.brand, &other.brand) {
+            (
+                StructBrand::Compiled { type_id: a, .. },
+                StructBrand::Compiled { type_id: b, .. },
+            ) => a == b,
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            (StructBrand::Loaded(a), StructBrand::Loaded(b)) => a.addr() == b.addr(),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            _ => false,
+        }
     }
 }
 impl ::core::cmp::Eq for RawBrandedStructSchema {}
 impl ::core::hash::Hash for RawBrandedStructSchema {
     fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
-        self.type_id.hash(state);
+        ::core::mem::discriminant(&self.brand).hash(state);
+        match &self.brand {
+            StructBrand::Compiled { type_id, .. } => type_id.hash(state),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(brand) => brand.addr().hash(state),
+        }
+    }
+}
+
+impl core::fmt::Debug for StructBrand {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error> {
+        match self {
+            StructBrand::Compiled { type_id, .. } => write!(f, "Compiled({type_id:?})"),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            StructBrand::Loaded(brand) => write!(f, "Loaded({:?})", brand.addr()),
+        }
     }
 }
 
@@ -351,8 +611,37 @@ impl core::fmt::Debug for RawBrandedStructSchema {
         write!(
             f,
             "RawBrandedStructSchema({:?}, {:?})",
-            self.generic as *const _, self.field_types as *const fn(u16) -> Type
+            self.generic as *const _, self.brand
         )
+    }
+}
+
+/// The brand binding function of a struct with no brand parameters in scope.
+/// Referenced by generated code for non-generic structs.
+pub fn no_brand_bindings(_scope_id: u64, _index: u16) -> Option<Type> {
+    None
+}
+
+/// Where the types of a schema node's annotation values come from.
+#[derive(Copy, Clone)]
+pub(crate) enum AnnotationSource {
+    /// A generated `get_annotation_types` function.
+    Compiled(fn(Option<u16>, u32) -> Type),
+
+    /// The annotation types of a loaded struct instance or enum.
+    #[cfg(all(feature = "std", feature = "alloc"))]
+    Loaded(crate::schema_loader::BrandRef),
+}
+
+impl AnnotationSource {
+    /// The type of the value of annotation `index` on the node itself
+    /// (`child_index == None`) or on its child (field or enumerant) `child_index`.
+    pub(crate) fn get(self, child_index: Option<u16>, index: u32) -> Type {
+        match self {
+            AnnotationSource::Compiled(f) => f(child_index, index),
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            AnnotationSource::Loaded(brand) => brand.get().annotation_type(child_index, index),
+        }
     }
 }
 
@@ -372,9 +661,9 @@ pub struct RawEnumSchema {
     /// The Node (as defined in schema.capnp), as a single segment message.
     pub(crate) arena: &'static crate::private::arena::GeneratedCodeArena,
 
-    /// Map from (maybe enumerant index, annotation index) to the Type
-    /// of the value held by that annotation.
-    pub(crate) annotation_types: fn(Option<u16>, u32) -> Type,
+    /// Where the types of the values held by the enum's (and its
+    /// enumerants') annotations come from.
+    pub(crate) annotations: AnnotationSource,
 }
 
 impl core::cmp::PartialEq for RawEnumSchema {
@@ -397,6 +686,30 @@ impl core::fmt::Debug for RawEnumSchema {
 }
 
 impl RawEnumSchema {
+    /// Whether this schema was loaded at run time by a
+    /// [`crate::schema_loader::SchemaLoader`], rather than generated by capnpc.
+    pub fn is_loaded(&self) -> bool {
+        match self.annotations {
+            AnnotationSource::Compiled(_) => false,
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            AnnotationSource::Loaded(_) => true,
+        }
+    }
+
+    /// See [`Type::usable_as`].
+    pub(crate) fn usable_as(self, target: Self) -> bool {
+        if self == target {
+            return true;
+        }
+        match (self.annotations, target.annotations) {
+            #[cfg(all(feature = "std", feature = "alloc"))]
+            (AnnotationSource::Loaded(brand), AnnotationSource::Compiled(_)) => {
+                brand.get().enum_usable_as(target)
+            }
+            _ => false,
+        }
+    }
+
     /// Constructs a new `RawEnumSchema`.
     pub const fn new(
         arena: &'static crate::private::arena::GeneratedCodeArena,
@@ -404,7 +717,7 @@ impl RawEnumSchema {
     ) -> Self {
         Self {
             arena,
-            annotation_types,
+            annotations: AnnotationSource::Compiled(annotation_types),
         }
     }
 }

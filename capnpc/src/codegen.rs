@@ -23,6 +23,7 @@ use std::collections;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use capnp::private::newtype_layout;
 use capnp::schema_capnp;
 use capnp::Error;
 
@@ -38,6 +39,7 @@ pub struct CodeGenerationCommand {
     raw_code_generator_request_path: Option<PathBuf>,
     capnp_root: String,
     crates_provide_map: HashMap<u64, String>,
+    embed_schema: bool,
 }
 
 impl Default for CodeGenerationCommand {
@@ -48,6 +50,7 @@ impl Default for CodeGenerationCommand {
             raw_code_generator_request_path: None,
             capnp_root: "::capnp".into(),
             crates_provide_map: HashMap::new(),
+            embed_schema: false,
         }
     }
 }
@@ -107,13 +110,19 @@ impl CodeGenerationCommand {
         self
     }
 
+    /// Whether each generated file also gets `SCHEMA_BYTES`, its schema as a closed, serialized
+    /// `CodeGeneratorRequest`. See [`crate::CompilerCommand::embed_schema`].
+    pub fn embed_schema(&mut self, embed: bool) -> &mut Self {
+        self.embed_schema = embed;
+        self
+    }
+
     /// Generates Rust code according to a `schema_capnp::code_generator_request` read from `inp`.
     pub fn run<T>(&mut self, inp: T) -> ::capnp::Result<()>
     where
         T: std::io::Read,
     {
         use capnp::serialize;
-        use std::io::Write;
 
         let message = serialize::read_message(inp, capnp::message::ReaderOptions::new())?;
 
@@ -141,6 +150,14 @@ impl CodeGenerationCommand {
                 Err(_) => "<unknown>".to_owned(),
             };
 
+            // `SCHEMA_BYTES`' bytes go in a file of their own next to the generated one, which
+            // `include_bytes!`s it.
+            let schema_file_name = format!("{root_name}_capnp_schema.cgr");
+            if self.embed_schema {
+                let bytes = crate::embedded_schema::embedded_schema_bytes(&ctx, requested_file)?;
+                write_if_changed(&filepath.with_file_name(&schema_file_name), &bytes)?;
+            }
+
             let lines =
                 Branch(vec![
                 Line(
@@ -153,33 +170,22 @@ impl CodeGenerationCommand {
                 Line(format!("// capnpc crate version: {}", env!("CARGO_PKG_VERSION"))),
                 BlankLine,
                 generate_node(&ctx, id, &root_name)?,
+                if self.embed_schema {
+                    Branch(vec![
+                        BlankLine,
+                        crate::embedded_schema::embedded_schema_declaration(
+                            &ctx,
+                            &schema_file_name,
+                        ),
+                    ])
+                } else {
+                    Branch(Vec::new())
+                },
             ]);
 
             let text = stringify(&lines);
 
-            let previous_text = ::std::fs::read(&filepath);
-            if previous_text.is_ok() && previous_text.unwrap() == text.as_bytes() {
-                // File is unchanged. Do not write it so that builds with the
-                // output as part of the source work in read-only filesystems
-                // and so timestamp-based build systems and watchers do not get
-                // confused.
-                continue;
-            }
-
-            // It would be simpler to use the ? operator instead of a pattern match, but then the error message
-            // would not include `filepath`.
-            match ::std::fs::File::create(&filepath) {
-                Ok(mut writer) => {
-                    writer.write_all(text.as_bytes()).map_err(convert_io_err)?;
-                }
-                Err(e) => {
-                    let _ = writeln!(
-                        &mut ::std::io::stderr(),
-                        "could not open file {filepath:?} for writing: {e}"
-                    );
-                    return Err(convert_io_err(e));
-                }
-            }
+            write_if_changed(&filepath, text.as_bytes())?;
         }
 
         if let Some(raw_code_generator_request) = &self.raw_code_generator_request_path {
@@ -192,6 +198,28 @@ impl CodeGenerationCommand {
         }
 
         Ok(())
+    }
+}
+
+/// Writes `contents` to `path`, unless it already holds them: then builds with the output as part
+/// of the source work in read-only filesystems, and timestamp-based build systems and watchers
+/// are not confused.
+fn write_if_changed(path: &Path, contents: &[u8]) -> ::capnp::Result<()> {
+    use std::io::Write;
+    if ::std::fs::read(path).is_ok_and(|previous| previous == contents) {
+        return Ok(());
+    }
+    // It would be simpler to use the ? operator instead of a pattern match, but then the error
+    // message would not include `path`.
+    match ::std::fs::File::create(path) {
+        Ok(mut writer) => writer.write_all(contents).map_err(convert_io_err),
+        Err(e) => {
+            let _ = writeln!(
+                &mut ::std::io::stderr(),
+                "could not open file {path:?} for writing: {e}"
+            );
+            Err(convert_io_err(e))
+        }
     }
 }
 
@@ -1787,6 +1815,98 @@ fn generate_pipeline_getter(
     }
 }
 
+// The generic scopes a struct node's Rust type carries parameters for, outermost first, as
+// (scope id, parameter names). This walks the same chain as `get_type_parameters`, so
+// concatenating the names gives the Rust type's parameter list: brand parameter `i` of scope
+// `id` is the Rust parameter with that name. Scopes without parameters (groups, non-generic
+// parents) are omitted.
+fn get_brand_scopes(
+    ctx: &GeneratorContext,
+    node_id: u64,
+) -> ::capnp::Result<Vec<(u64, Vec<String>)>> {
+    let mut current_node_id = node_id;
+    let mut scopes = Vec::new();
+    loop {
+        let current_node = ctx.node_map[&current_node_id];
+        let mut params = Vec::new();
+        for param in current_node.get_parameters()? {
+            params.push(param.get_name()?.to_string()?);
+        }
+        if !params.is_empty() {
+            scopes.push((current_node_id, params));
+        }
+        current_node_id = match ctx.node_parents.get(&current_node_id).copied() {
+            Some(0) | None => break,
+            Some(id) => id,
+        };
+    }
+    scopes.reverse();
+    Ok(scopes)
+}
+
+// For a generic struct node, a `get_brand_binding` function mapping (scope id, parameter
+// index) to the Type bound to that parameter. Non-generic nodes get nothing: they use the
+// shared `introspect::no_brand_bindings`.
+fn generate_get_brand_binding(
+    ctx: &GeneratorContext,
+    node_reader: schema_capnp::node::Reader,
+) -> ::capnp::Result<FormattedText> {
+    if !node_reader.get_is_generic() {
+        return Ok(Branch(Vec::new()));
+    }
+    let mut branches = Vec::new();
+    for (scope_id, params) in get_brand_scopes(ctx, node_reader.get_id())? {
+        for (index, param) in params.iter().enumerate() {
+            branches.push(Line(fmt!(
+                ctx,
+                "({scope_id:#x}, {index}) => ::core::option::Option::Some(<{param} as {capnp}::introspect::Introspect>::introspect()),"
+            )));
+        }
+    }
+    branches.push(Line("_ => ::core::option::Option::None,".into()));
+    let params = node_reader.parameters_texts(ctx);
+    Ok(Branch(vec![
+        Line(fmt!(
+            ctx,
+            "pub(crate) fn get_brand_binding<{0}>(scope_id: u64, index: u16) -> ::core::option::Option<{capnp}::introspect::Type> {1} {{",
+            params.params,
+            params.where_clause
+        )),
+        indent(vec![
+            Line("match (scope_id, index) {".into()),
+            indent(branches),
+            Line("}".into()),
+        ]),
+        Line("}".into()),
+    ]))
+}
+
+// The `.with_brand_scopes(..)` call for a struct node's `RAW_SCHEMA`, if it has any.
+fn brand_scopes_builder(
+    ctx: &GeneratorContext,
+    node_reader: schema_capnp::node::Reader,
+) -> ::capnp::Result<String> {
+    if !node_reader.get_is_generic() {
+        return Ok(String::new());
+    }
+    let scopes = get_brand_scopes(ctx, node_reader.get_id())?;
+    if scopes.is_empty() {
+        return Ok(String::new());
+    }
+    let scopes = scopes
+        .iter()
+        .map(|(id, params)| {
+            fmt!(
+                ctx,
+                "{capnp}::introspect::BrandScope::new({id:#x}, {})",
+                params.len()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Ok(format!(".with_brand_scopes(&[{scopes}])"))
+}
+
 fn generate_get_field_types(
     ctx: &GeneratorContext,
     node_reader: schema_capnp::node::Reader,
@@ -2027,11 +2147,12 @@ fn generate_members_by_name(
         _ => return Err(Error::failed("not a struct".into())),
     };
 
+    // Sorted by the *schema* name, not the `$Rust.name` annotation: this table backs
+    // `StructSchema::find_field_by_name`, which binary-searches by `Field::get_proto().get_name()`
+    // (as does the runtime `SchemaLoader`).
     let mut members_by_name = Vec::new();
     for (index, field) in st.get_fields()?.iter().enumerate() {
-        if let Ok(name) = get_field_name(field) {
-            members_by_name.push((name, index));
-        }
+        members_by_name.push((field.get_name()?.to_str()?, index));
     }
     members_by_name.sort_by_key(|k| k.0);
 
@@ -2048,37 +2169,13 @@ fn generate_members_by_name(
     Ok(Branch(vec![Line(members_by_name_string)]))
 }
 
-// The `type` newtypes a field was declared with, nearest first. A field declared `corner
-// :ChainedPoint`, where `type ChainedPoint = Point` and `type Point = Vec3`, gives [ChainedPoint,
-// Point, Vec3]. Empty for a field not declared with a newtype. A group field records its newtype
-// in `Field.typeId`; a slot field in its type's `Type.typeId`. Each `type` node records the
-// newtype it aliases (if any) in its own `Type.typeId`, which is how the chain is followed. A
-// newtype whose node isn't in the request ends the chain there.
+// The `type` newtypes a field was declared with, nearest first; see
+// `capnp::private::newtype_layout::field_newtype_ids`.
 fn field_newtype_ids(
     ctx: &GeneratorContext,
     field: schema_capnp::field::Reader,
 ) -> ::capnp::Result<Vec<u64>> {
-    use capnp::schema_capnp::*;
-    let mut id = field.get_type_id();
-    if id == 0 {
-        if let field::Slot(slot) = field.which()? {
-            id = slot.get_type()?.get_type_id();
-        }
-    }
-    let mut ids = Vec::new();
-    // The schema compiler rejects alias cycles; the `contains` check only stops a malformed
-    // request from looping forever.
-    while id != 0 && !ids.contains(&id) {
-        ids.push(id);
-        let Some(node) = ctx.node_map.get(&id) else {
-            break;
-        };
-        let node::Type(Ok(t)) = node.which()? else {
-            break;
-        };
-        id = t.get_type_id();
-    }
-    Ok(ids)
+    newtype_layout::field_newtype_ids(&ctx.node_map, field)
 }
 
 // `FIELD_NEWTYPES`: for each field index, the newtype ids from `field_newtype_ids`. None (and
@@ -2209,37 +2306,16 @@ fn get_ty_params_of_brand_helper(
 // `type` node). We give such a newtype a semantic trait -- `vec3::Reader` -- so every use site
 // shares one name. Returns the template node's id when `alias_id` is an inline group/union
 // newtype, or a `type` aliasing one (`type Bar = Foo`), which shares Foo's template.
+//
+// These layout helpers live in `capnp::private::newtype_layout`, shared with the schema loader.
 fn newtype_template_id(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(alias) = ctx.node_map.get(&alias_id) else {
-        return Ok(None);
-    };
-    let node::Type(Ok(t)) = alias.which()? else {
-        return Ok(None);
-    };
-    let type_::Struct(st) = t.which()? else {
-        return Ok(None); // scalar newtype -- rendered via its underlying type
-    };
-    let template_id = st.get_type_id();
-    let Some(template) = ctx.node_map.get(&template_id) else {
-        return Ok(None);
-    };
-    if template.get_scope_id() != alias_id {
-        // Not this node's own template. Either it aliases another inline newtype (recorded as
-        // Type.typeId), whose template it shares, or it names a pre-existing struct.
-        let aliased = t.get_type_id();
-        if aliased != 0 {
-            return newtype_template_id(ctx, aliased);
-        }
-        return Ok(None);
-    }
-    Ok(Some(template_id))
+    newtype_layout::newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // The inline newtype owning `alias_id`'s template: `alias_id` itself, or for `type Bar = Foo`
 // (Foo an inline group/union newtype), Foo. None if `alias_id` isn't an inline newtype.
 fn inline_newtype_owner(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<Option<u64>> {
-    Ok(newtype_template_id(ctx, alias_id)?.map(|t| ctx.node_map[&t].get_scope_id()))
+    newtype_layout::inline_newtype_owner(&ctx.node_map, alias_id)
 }
 
 // A non-union group newtype. Its fields are slots and/or nested-newtype members (group fields
@@ -2249,24 +2325,7 @@ fn group_newtype_template_id(
     ctx: &GeneratorContext,
     alias_id: u64,
 ) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
-        return Ok(None);
-    };
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(None);
-    };
-    if tmpl.get_discriminant_count() > 0 {
-        return Ok(None); // union newtype -- handled separately
-    }
-    for field in tmpl.get_fields()? {
-        if let field::Group(_) = field.which()? {
-            if field.get_type_id() == 0 {
-                return Ok(None); // anonymous group member -- not a newtype, deferred
-            }
-        }
-    }
-    Ok(Some(template_id))
+    newtype_layout::group_newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // A union newtype. Slot arms have use-site-independent `Which` payloads; a group arm is a nested
@@ -2275,24 +2334,7 @@ fn union_newtype_template_id(
     ctx: &GeneratorContext,
     alias_id: u64,
 ) -> ::capnp::Result<Option<u64>> {
-    use capnp::schema_capnp::*;
-    let Some(template_id) = newtype_template_id(ctx, alias_id)? else {
-        return Ok(None);
-    };
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
-        return Ok(None);
-    };
-    if tmpl.get_discriminant_count() == 0 {
-        return Ok(None); // not a union
-    }
-    for field in tmpl.get_fields()? {
-        if let field::Group(_) = field.which()? {
-            if field.get_type_id() == 0 {
-                return Ok(None); // anonymous group arm -- not a newtype, deferred
-            }
-        }
-    }
-    Ok(Some(template_id))
+    newtype_layout::union_newtype_template_id(&ctx.node_map, alias_id)
 }
 
 // One method of a newtype's Reader/Builder trait: its signature (the text after `fn`) plus how a
@@ -2365,11 +2407,12 @@ fn newtype_trait_methods(
     Ok(methods)
 }
 
-// The id of a `type` newtype's node, as `pub const TYPE_ID` in its module. An alias module
+// The node's id, as `pub const TYPE_ID` in the module of every struct, interface and `type`
+// newtype. It is the id the schema (and a `SchemaLoader`) knows the node by. An alias module
 // (`type Bar = Foo`) declares its own, which takes precedence over the one its `pub use` of
-// Foo's module brings in, so each name reports its own id. It is what
+// Foo's module brings in, so each name reports its own id. For a newtype it is what
 // `schema::Field::get_newtype_ids` returns, so code can recognise a newtype at runtime.
-fn newtype_type_id_line(node_id: u64) -> FormattedText {
+fn type_id_line(node_id: u64) -> FormattedText {
     Line(format!("pub const TYPE_ID: u64 = {};", format_u64(node_id)))
 }
 
@@ -2391,7 +2434,7 @@ fn generate_newtype_trait(
                     "pub use {}::*;",
                     ctx.get_qualified_module(owner)
                 ))),
-                indent(newtype_type_id_line(node_id)),
+                indent(type_id_line(node_id)),
                 line("}"),
             ]));
         }
@@ -2405,50 +2448,37 @@ fn generate_newtype_trait(
 // Whether a use site of `alias_id` gets a per-use-site table static and erased carriers: true for
 // a group or union newtype (or an alias of one).
 fn has_use_site_table(ctx: &GeneratorContext, alias_id: u64) -> ::capnp::Result<bool> {
-    Ok(group_newtype_template_id(ctx, alias_id)?.is_some()
-        || union_newtype_template_id(ctx, alias_id)?.is_some())
+    newtype_layout::has_use_site_table(&ctx.node_map, alias_id)
 }
 
 // The `static <NAME>_TABLE: UseSiteTable` for the use site `instance_id` of the newtype whose
-// template is `template_id`, emitted in the module of the instance's parent. Per the design, it has
-// one entry per field of the template, indexed by the field's position in the template's `fields`
-// list (stable under evolution). A slot maps to its offset, matched to the instance by name, or to
-// the sentinel when unmapped (an incomplete `@[...]`); a nested-newtype member refers to the nested
-// instance's own table, which its parent module (the instance's) emits.
+// template is `template_id`, emitted in the module of the instance's parent. The table itself is
+// computed by `newtype_layout::use_site_table`: one entry per field of the template, indexed by
+// the field's position in the template's `fields` list (stable under evolution). A slot maps to
+// its offset, or to the sentinel when unmapped (an incomplete `@[...]`); a nested-newtype member
+// refers to the nested instance's own table, which its parent module (the instance's) emits.
 fn use_site_table_static(
     ctx: &GeneratorContext,
     template_id: u64,
     instance_id: u64,
 ) -> ::capnp::Result<FormattedText> {
-    use capnp::schema_capnp::*;
-    let node::Struct(tmpl) = ctx.node_map[&template_id].which()? else {
+    let Some(table) = newtype_layout::use_site_table(&ctx.node_map, template_id, instance_id)?
+    else {
         return Ok(Branch(vec![]));
     };
-    let node::Struct(instance) = ctx.node_map[&instance_id].which()? else {
-        return Ok(Branch(vec![]));
-    };
-    let mut inst_fields = ::std::collections::HashMap::new();
-    for f in instance.get_fields()? {
-        inst_fields.insert(f.get_name()?.to_str()?.to_string(), f);
-    }
-    let unmapped = fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset(0xffff_ffff)");
     let mut entries = Vec::new();
-    for field in tmpl.get_fields()? {
-        let raw = field.get_name()?.to_str()?;
-        let inst = inst_fields.get(raw).map(|f| f.which());
-        let entry = match (field.which()?, inst) {
-            (field::Slot(_), Some(Ok(field::Slot(s)))) => fmt!(
-                ctx,
-                "{capnp}::traits::UseSiteEntry::Offset({})",
-                s.get_offset()
-            ),
-            (field::Slot(_), _) => unmapped.clone(),
-            (field::Group(_), inst) => {
-                let child = match inst {
-                    Some(Ok(field::Group(ig))) if has_use_site_table(ctx, field.get_type_id())? => {
-                        use_site_table_path(ctx, instance_id, ig.get_type_id())?
-                    }
-                    _ => fmt!(ctx, "{capnp}::traits::EMPTY_USE_SITE_TABLE"),
+    for entry in &table.entries {
+        let entry = match entry {
+            newtype_layout::LayoutEntry::Offset(capnp::traits::UNMAPPED) => {
+                fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset(0xffff_ffff)")
+            }
+            newtype_layout::LayoutEntry::Offset(offset) => {
+                fmt!(ctx, "{capnp}::traits::UseSiteEntry::Offset({offset})")
+            }
+            newtype_layout::LayoutEntry::Nested(nested) => {
+                let child = match nested {
+                    Some(nested) => use_site_table_path(ctx, instance_id, nested.group_id)?,
+                    None => fmt!(ctx, "{capnp}::traits::EMPTY_USE_SITE_TABLE"),
                 };
                 fmt!(ctx, "{capnp}::traits::UseSiteEntry::Nested(&{child})")
             }
@@ -2460,7 +2490,7 @@ fn use_site_table_static(
         ctx,
         "pub(crate) static {name}: {capnp}::traits::UseSiteTable<'static> = {capnp}::traits::UseSiteTable {{ entries: &[{}], discriminant_offset: {} }};",
         entries.join(", "),
-        instance.get_discriminant_offset()
+        table.discriminant_offset
     )))
 }
 
@@ -2949,48 +2979,21 @@ fn any_downcast_impls(
 // For a group that is a use site of a group or union newtype, the `.with_any_layout(..)` call that
 // records the newtype ids and use-site table on its `RAW_SCHEMA`, so the dynamic API can downcast
 // it. The table is the one the parent's module already emits for `as_any()` (named by
-// `use_site_table_path`). None for any
+// `use_site_table_path`); its contents come from `newtype_layout::use_site_layout`. None for any
 // other node.
 fn use_site_any_layout(
     ctx: &GeneratorContext,
     node: schema_capnp::node::Reader,
 ) -> ::capnp::Result<Option<String>> {
-    use capnp::schema_capnp::*;
-    let node::Struct(instance) = node.which()? else {
+    let Some(layout) = newtype_layout::use_site_layout(&ctx.node_map, node)? else {
         return Ok(None);
     };
-    if !instance.get_is_group() {
-        return Ok(None);
-    }
-    let id = node.get_id();
-    let Some(parent) = ctx.node_map.get(&node.get_scope_id()) else {
-        return Ok(None);
-    };
-    let node::Struct(parent_struct) = parent.which()? else {
-        return Ok(None);
-    };
-    for field in parent_struct.get_fields()? {
-        let field::Group(group) = field.which()? else {
-            continue;
-        };
-        if group.get_type_id() != id || field.get_type_id() == 0 {
-            continue;
-        }
-        let alias_id = field.get_type_id();
-        if !has_use_site_table(ctx, alias_id)? {
-            return Ok(None);
-        }
-        let ids: Vec<String> = field_newtype_ids(ctx, field)?
-            .into_iter()
-            .map(format_u64)
-            .collect();
-        let table = use_site_table_path(ctx, node.get_scope_id(), id)?;
-        return Ok(Some(format!(
-            ".with_any_layout(&[{}], &{table})",
-            ids.join(", ")
-        )));
-    }
-    Ok(None)
+    let ids: Vec<String> = layout.newtype_ids.into_iter().map(format_u64).collect();
+    let table = use_site_table_path(ctx, node.get_scope_id(), node.get_id())?;
+    Ok(Some(format!(
+        ".with_any_layout(&[{}], &{table})",
+        ids.join(", ")
+    )))
 }
 
 // The path of the `*_TABLE` static for the use-site group `instance_id`, emitted in the module of
@@ -3072,7 +3075,7 @@ fn generate_group_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3366,7 +3369,7 @@ fn generate_union_newtype_trait(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {} {{", module_name(node_name))),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(module_items),
         line("}"),
     ]))
@@ -3551,7 +3554,7 @@ fn generate_scalar_newtype_alias(
     Ok(Branch(vec![
         BlankLine,
         Line(format!("pub mod {module} {{")),
-        indent(newtype_type_id_line(node_id)),
+        indent(type_id_line(node_id)),
         indent(items),
         line("}"),
     ]))
@@ -3627,11 +3630,17 @@ fn generate_node(
 
             private_mod_interior.push(generate_get_field_types(ctx, *node_reader)?);
             private_mod_interior.push(generate_get_annotation_types(ctx, *node_reader)?);
+            private_mod_interior.push(generate_get_brand_binding(ctx, *node_reader)?);
+            let brand_binding = if is_generic {
+                format!("_private::get_brand_binding::<{}>", params.params)
+            } else {
+                fmt!(ctx, "{capnp}::introspect::no_brand_bindings")
+            };
 
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
             let field_newtypes = generate_field_newtypes(ctx, *node_reader)?;
-            let mut raw_schema_end = ")".to_string();
+            let mut raw_schema_end = ")".to_string() + &brand_scopes_builder(ctx, *node_reader)?;
             if field_newtypes.is_some() {
                 raw_schema_end += ".with_field_newtypes(FIELD_NEWTYPES)";
             }
@@ -3775,6 +3784,7 @@ fn generate_node(
                 "pub(crate) const TYPE_ID: u64 = {};",
                 format_u64(node_id)
             )));
+            preamble.push(Branch(vec![type_id_line(node_id), BlankLine]));
 
             let from_pointer_builder_impl =
                 Branch(vec![
@@ -3796,7 +3806,7 @@ fn generate_node(
                     Branch(vec![
                         Line("#[derive(Copy, Clone)]".into()),
                         line("pub struct Owned(());"),
-                        Line(fmt!(ctx,"impl {capnp}::introspect::Introspect for Owned {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types, annotation_types: _private::get_annotation_types, type_id: ::core::any::TypeId::of::<Owned>() }}).into() }} }}")),
+                        Line(fmt!(ctx,"impl {capnp}::introspect::Introspect for Owned {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types, _private::get_annotation_types, {brand_binding}, ::core::any::TypeId::of::<Owned>())).into() }} }}")),
                         Line(fmt!(ctx, "impl {capnp}::traits::Owned for Owned {{ type Reader<'a> = Reader<'a>; type Builder<'a> = Builder<'a>; }}")),
                         Line(fmt!(ctx,"impl {capnp}::traits::OwnedStruct for Owned {{ type Reader<'a> = Reader<'a>; type Builder<'a> = Builder<'a>; }}")),
                         Line(fmt!(ctx,"impl {capnp}::traits::Pipelined for Owned {{ type Pipeline = Pipeline; }}"))
@@ -3807,7 +3817,7 @@ fn generate_node(
                         Line(format!("pub struct Owned<{}> {{", params.params)),
                             indent(Line(params.phantom_data_type.clone())),
                         line("}"),
-                        Line(fmt!(ctx,"impl <{0}> {capnp}::introspect::Introspect for Owned <{0}> {1} {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>() }}).into() }} }}",
+                        Line(fmt!(ctx,"impl <{0}> {capnp}::introspect::Introspect for Owned <{0}> {1} {{ fn introspect() -> {capnp}::introspect::Type {{ {capnp}::introspect::TypeVariant::Struct({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>())).into() }} }}",
                             params.params, params.where_clause)),
                         Line(fmt!(ctx,"impl <{0}> {capnp}::traits::Owned for Owned <{0}> {1} {{ type Reader<'a> = Reader<'a, {0}>; type Builder<'a> = Builder<'a, {0}>; }}",
                             params.params, params.where_clause)),
@@ -3858,7 +3868,7 @@ fn generate_node(
                             params.params, params.where_clause)),
                 indent(vec![
                     Line(format!("fn from(reader: Reader<'a,{0}>) -> Self {{", params.params)),
-                    indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Reader::new(reader.reader, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>()}})))", params.params))),
+                    indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Reader::new(reader.reader, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>()))))", params.params))),
                     line("}")
                 ]),
                 line("}"),
@@ -3961,7 +3971,7 @@ fn generate_node(
                             params.params, params.where_clause)),
                 indent(vec![
                         Line(format!("fn from(builder: Builder<'a,{0}>) -> Self {{", params.params)),
-                        indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Builder::new(builder.builder, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema {{ generic: &_private::RAW_SCHEMA, field_types: _private::get_field_types::<{0}>, annotation_types: _private::get_annotation_types::<{0}>, type_id: ::core::any::TypeId::of::<Owned<{0}>>()}})))", params.params))),
+                        indent(Line(fmt!(ctx,"Self::Struct({capnp}::dynamic_struct::Builder::new(builder.builder, {capnp}::schema::StructSchema::new({capnp}::introspect::RawBrandedStructSchema::compiled(&_private::RAW_SCHEMA, _private::get_field_types::<{0}>, _private::get_annotation_types::<{0}>, {brand_binding}, ::core::any::TypeId::of::<Owned<{0}>>()))))", params.params))),
                         line("}")
                 ]),
                 line("}"),
@@ -4167,6 +4177,7 @@ fn generate_node(
             )));
 
             mod_interior.push(line("#![allow(unused_variables)]"));
+            mod_interior.push(type_id_line(node_id));
 
             let methods = interface.get_methods()?;
             for (ordinal, method) in methods.into_iter().enumerate() {
