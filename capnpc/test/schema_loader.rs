@@ -32,6 +32,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use capnp::introspect::{Introspect, RawBrandedStructSchema, Type, TypeVariant};
+use capnp::private::newtype_layout;
 use capnp::schema::{EnumSchema, StructSchema};
 use capnp::schema_capnp::{brand, code_generator_request, node, type_};
 use capnp::schema_loader::SchemaLoader;
@@ -42,9 +43,17 @@ use crate::test_capnp::{
     test_generics_wrapper2, test_groups, test_implicit_method_params, test_interface, test_union,
     test_use_generics,
 };
+use crate::test_newtype_capnp::{
+    aliases, cross_file, envelope, order_type, place_params, place_results, point, price, priced,
+    shapes, status, vec3,
+};
+use crate::test_newtype_evolution_v1_capnp as v1;
+use crate::test_newtype_evolution_v2_capnp as v2;
 use crate::test_util::{self, CheckTestMessage};
 
 static CGR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/raw_code_gen_request.bin"));
+static EVOLUTION_V1_CGR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/evolution-v1.cgr"));
+static EVOLUTION_V2_CGR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/evolution-v2.cgr"));
 static SCHEMA_LOADER_CGR: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/schema-loader.cgr"));
 
 fn read_cgr(bytes: &[u8]) -> message::Reader<serialize::OwnedSegments> {
@@ -70,6 +79,16 @@ fn load(bytes: &[u8]) -> SchemaLoader {
 fn loader() -> &'static SchemaLoader {
     static LOADER: OnceLock<SchemaLoader> = OnceLock::new();
     LOADER.get_or_init(|| load(CGR))
+}
+
+fn v1_loader() -> &'static SchemaLoader {
+    static LOADER: OnceLock<SchemaLoader> = OnceLock::new();
+    LOADER.get_or_init(|| load(EVOLUTION_V1_CGR))
+}
+
+fn v2_loader() -> &'static SchemaLoader {
+    static LOADER: OnceLock<SchemaLoader> = OnceLock::new();
+    LOADER.get_or_init(|| load(EVOLUTION_V2_CGR))
 }
 
 fn compiled<T: Introspect>() -> StructSchema {
@@ -140,7 +159,8 @@ fn describe_struct_at(schema: StructSchema, depth: u32) -> String {
     out + ")"
 }
 
-/// `compiled` and `loaded` describe the same struct: fields, types, bindings and annotations, recursively through struct-typed fields.
+/// `compiled` and `loaded` describe the same struct: fields, types, bindings, newtypes and
+/// annotations, recursively through struct-typed fields.
 fn assert_equivalent(compiled: StructSchema, loaded: StructSchema, seen: &mut HashSet<String>) {
     let key = describe_struct(compiled);
     assert_eq!(key, describe_struct(loaded));
@@ -161,6 +181,15 @@ fn assert_equivalent(compiled: StructSchema, loaded: StructSchema, seen: &mut Ha
         loaded.get_brand_scopes(),
         "{name}"
     );
+    assert_eq!(
+        compiled.get_newtype_ids(),
+        loaded.get_newtype_ids(),
+        "{name}"
+    );
+    let (compiled_ids, compiled_table) = newtype_layout::recorded_layout(compiled);
+    let (loaded_ids, loaded_table) = newtype_layout::recorded_layout(loaded);
+    assert_eq!(compiled_ids, loaded_ids, "{name}");
+    assert_eq!(compiled_table.copied(), loaded_table.copied(), "{name}");
     assert_annotations_equivalent(
         compiled.get_annotations().unwrap(),
         loaded.get_annotations().unwrap(),
@@ -179,6 +208,11 @@ fn assert_equivalent(compiled: StructSchema, loaded: StructSchema, seen: &mut Ha
         assert_eq!(
             describe(c.get_type()),
             describe(l.get_type()),
+            "{name}.{field_name}"
+        );
+        assert_eq!(
+            c.get_newtype_ids(),
+            l.get_newtype_ids(),
             "{name}.{field_name}"
         );
         assert_eq!(loaded.get_field_by_name(field_name).unwrap(), l);
@@ -372,6 +406,24 @@ fn reload_is_deduplicated() {
 
 #[test]
 #[cfg_attr(miri, ignore)]
+fn reload_with_conflicting_newtypes_is_rejected() {
+    let loader = load(EVOLUTION_V1_CGR);
+    let id = id_of::<v1::holder::Owned>();
+    let before = loader.get_struct(id).unwrap();
+    load_into(&loader, EVOLUTION_V1_CGR).unwrap();
+    assert_eq!(loader.get_struct(id).unwrap(), before);
+
+    // Version 2 reuses version 1's newtype ids with different content: the whole batch is
+    // rejected, and version 1 is untouched.
+    let err = load_into(&loader, EVOLUTION_V2_CGR).unwrap_err();
+    assert!(format!("{err}").contains("different content"), "{err}");
+    assert_eq!(loader.get_struct(id).unwrap(), before);
+    let v2_file = cgr_node_id(EVOLUTION_V2_CGR, "test-newtype-evolution-v2.capnp");
+    assert!(loader.get_node(v2_file).is_err());
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
 fn hash_map_of_loaded_fields() {
     let schema = loaded::<test_all_types::Owned>();
     let mut map = HashMap::new();
@@ -478,6 +530,12 @@ fn structure_matches_compiled() {
         compiled::<
             crate::test_capnp::test_generics_union::Owned<any_pointer::Owned, any_pointer::Owned>,
         >(),
+        compiled::<shapes::Owned>(),
+        compiled::<aliases::Owned>(),
+        compiled::<cross_file::Owned>(),
+        compiled::<place_params::Owned>(),
+        compiled::<place_results::Owned>(),
+        compiled::<envelope::Owned<any_pointer::Owned>>(),
     ];
     for root in roots {
         let loaded = loader().get_struct(root.get_proto().get_id()).unwrap();
@@ -621,6 +679,25 @@ fn generics_read_same() {
         format!("{loaded_root:?}"),
         "(foo = \"foo\", bar = (baz = 0x\"010203\"))"
     );
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn newtypes_read_same() {
+    let mut message = message::Builder::new_default();
+    {
+        let mut root: shapes::Builder<'_> = message.init_root();
+        root.reborrow().get_top_left().set_x(1.0);
+        root.reborrow().get_bottom_right().set_z(2.0);
+        root.reborrow().get_named().set_label("label");
+        root.reborrow().get_status().set_code(5);
+        root.reborrow().get_prices().get_stop().set_value(9);
+        root.reborrow().get_order().init_limit().set_scale(3);
+        root.reborrow().get_priced_partial().set_amount(4);
+        root.set_id(&[1, 2]);
+        root.set_age(30);
+    }
+    assert_reads_same::<shapes::Owned, _>(&message);
 }
 
 #[test]
@@ -1051,6 +1128,253 @@ fn polymorphic_recursion() {
         format!("{root:?}"),
         "(nest = (value = \"a\", child = (value = (v = \"b\"), child = (value = (v = (v = \"c\"))))))"
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Newtypes
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn use_site_tables_match_compiled() {
+    let mut use_sites = 0;
+    let mut seen = HashSet::new();
+    for root in [
+        compiled::<shapes::Owned>(),
+        compiled::<cross_file::Owned>(),
+        compiled::<aliases::Owned>(),
+        compiled::<place_params::Owned>(),
+        compiled::<place_results::Owned>(),
+        compiled::<envelope::Owned<any_pointer::Owned>>(),
+    ] {
+        let mut stack = vec![root];
+        while let Some(schema) = stack.pop() {
+            let id = schema.get_proto().get_id();
+            if !seen.insert(id) {
+                continue;
+            }
+            let loaded = loader().get_struct(id).unwrap();
+            let (compiled_ids, compiled_table) = newtype_layout::recorded_layout(schema);
+            let (loaded_ids, loaded_table) = newtype_layout::recorded_layout(loaded);
+            assert_eq!(compiled_ids, loaded_ids);
+            assert_eq!(compiled_table.copied(), loaded_table.copied());
+            if compiled_table.is_some() {
+                use_sites += 1;
+            }
+            for field in schema.get_fields().unwrap() {
+                if let TypeVariant::Struct(raw) = field.get_type().which() {
+                    stack.push(StructSchema::new(raw));
+                }
+            }
+        }
+    }
+    // test-newtype.capnp generates 31 use-site tables.
+    assert_eq!(use_sites, 31);
+}
+
+fn loaded_shapes_root<A: message::Allocator>(
+    message: &message::Builder<A>,
+) -> dynamic_struct::Reader<'_> {
+    root_pointer(message)
+        .get_as_dynamic(loaded::<shapes::Owned>())
+        .unwrap()
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn newtype_downcasts_on_loaded_groups() {
+    let mut message = message::Builder::new_default();
+    {
+        let mut root: shapes::Builder<'_> = message.init_root();
+        root.reborrow().get_top_left().set_y(1.5);
+        root.reborrow().get_status().set_label("lbl");
+        root.reborrow().get_prices().get_limit().set_value(42);
+        root.reborrow().get_order().init_limit().set_value(43);
+        root.reborrow().get_priced_partial().set_amount(5);
+    }
+    let root = loaded_shapes_root(&message);
+    let group = |name| root.get_named(name).unwrap();
+
+    let top_left: vec3::AnyReader<'_> = group("topLeft").downcast();
+    assert_eq!(top_left.get_y(), 1.5);
+    // A union newtype.
+    let status: status::AnyReader<'_> = group("status").downcast();
+    match status.which().unwrap() {
+        status::Which::Label(t) => assert_eq!(t.unwrap(), "lbl"),
+        _ => panic!("expected label"),
+    }
+    // A nested newtype member, and a union arm that is one.
+    let dynamic_value::Reader::Struct(prices) = group("prices") else {
+        panic!("not a group")
+    };
+    let limit: price::AnyReader<'_> = prices.get_named("limit").unwrap().downcast();
+    assert_eq!(limit.get_value(), 42);
+    let order: order_type::AnyReader<'_> = group("order").downcast();
+    match order.which().unwrap() {
+        order_type::Which::Limit(p) => assert_eq!(p.get_value(), 43),
+        _ => panic!("expected limit"),
+    }
+    // An incomplete mapping: `scale` is unmapped and reads its default.
+    let partial: priced::AnyReader<'_> = group("pricedPartial").downcast();
+    assert_eq!((partial.get_amount(), partial.get_scale()), (5, 100));
+    let dynamic_value::Reader::Struct(top_left) = group("topLeft") else {
+        panic!("not a group")
+    };
+    assert_eq!(top_left.get_schema().get_newtype_ids(), &[vec3::TYPE_ID]);
+
+    // Through an alias chain: ChainedPoint -> Point -> Vec3.
+    let mut message = message::Builder::new_default();
+    message
+        .init_root::<aliases::Builder<'_>>()
+        .get_chained()
+        .set_y(2.5);
+    let root = root_pointer(&message)
+        .get_as_dynamic(loaded::<aliases::Owned>())
+        .unwrap();
+    let chained: point::AnyReader<'_> = root.get_named("chained").unwrap().downcast();
+    assert_eq!(chained.get_y(), 2.5);
+    let chained: vec3::AnyReader<'_> = root.get_named("chained").unwrap().downcast();
+    assert_eq!(chained.get_y(), 2.5);
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn newtype_builder_downcasts_on_loaded_groups() {
+    let mut message = message::Builder::new_default();
+    {
+        let mut root = message
+            .init_root_dynamic(loaded::<shapes::Owned>())
+            .unwrap();
+        let mut bottom_right: vec3::AnyBuilder<'_> =
+            root.reborrow().get_named("bottomRight").unwrap().downcast();
+        bottom_right.set_x(10.0);
+        bottom_right.set_z(30.0);
+        let mut order: order_type::AnyBuilder<'_> =
+            root.reborrow().get_named("order").unwrap().downcast();
+        order.set_cancel(7);
+        let prices: dynamic_struct::Builder<'_> =
+            root.reborrow().get_named("prices").unwrap().downcast();
+        let mut stop: price::AnyBuilder<'_> = prices.get_named("stop").unwrap().downcast();
+        stop.set_scale(2);
+    }
+    let reader = message.get_root_as_reader::<shapes::Reader<'_>>().unwrap();
+    assert_eq!(reader.reborrow().get_bottom_right().get_x(), 10.0);
+    assert_eq!(reader.reborrow().get_bottom_right().get_z(), 30.0);
+    assert_eq!(reader.reborrow().get_top_left().get_x(), 0.0);
+    assert_eq!(reader.reborrow().get_prices().get_stop().get_scale(), 2);
+    match reader.get_order().which().unwrap() {
+        shapes::order::Cancel(n) => assert_eq!(n, 7),
+        _ => panic!("expected cancel"),
+    }
+}
+
+#[test]
+#[should_panic(expected = "was not declared as type")]
+#[cfg_attr(miri, ignore)]
+fn newtype_downcast_on_loaded_group_rejects_other_newtypes() {
+    let mut message = message::Builder::new_default();
+    message.init_root::<shapes::Builder<'_>>();
+    let root = loaded_shapes_root(&message);
+    let _: status::AnyReader<'_> = root.get_named("topLeft").unwrap().downcast();
+}
+
+#[test]
+#[should_panic(expected = "not mapped")]
+#[cfg_attr(miri, ignore)]
+fn newtype_incomplete_mapping_set_panics_on_loaded_group() {
+    let mut message = message::Builder::new_default();
+    let mut root = message
+        .init_root_dynamic(loaded::<shapes::Owned>())
+        .unwrap();
+    let mut partial: priced::AnyBuilder<'_> = root
+        .reborrow()
+        .get_named("pricedPartial")
+        .unwrap()
+        .downcast();
+    partial.set_scale(1);
+}
+
+fn evolution_root<'a, A: message::Allocator>(
+    loader: &SchemaLoader,
+    message: &'a message::Builder<A>,
+    holder_id: u64,
+) -> dynamic_struct::Reader<'a> {
+    root_pointer(message)
+        .get_as_dynamic(loader.get_struct(holder_id).unwrap())
+        .unwrap()
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn loaded_v2_use_site_through_v1_carriers() {
+    let message = crate::newtype_evolution::v2_message();
+    let root = evolution_root(v2_loader(), &message, id_of::<v2::holder::Owned>());
+    let group = |name| root.get_named(name).unwrap();
+    crate::newtype_evolution::check_v1_view(
+        group("a").downcast(),
+        group("l").downcast(),
+        group("s").downcast(),
+        group("r").downcast(),
+    );
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn loaded_v1_use_site_through_v2_carriers() {
+    let message = crate::newtype_evolution::v1_message();
+    let root = evolution_root(v1_loader(), &message, id_of::<v1::holder::Owned>());
+    let group = |name| root.get_named(name).unwrap();
+    crate::newtype_evolution::check_v2_view_of_v1(
+        group("a").downcast(),
+        group("l").downcast(),
+        group("s").downcast(),
+        group("r").downcast(),
+    );
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn loaded_v2_use_site_written_through_v1_carriers() {
+    let mut message = crate::newtype_evolution::v2_message();
+    {
+        let schema = v2_loader()
+            .get_struct(id_of::<v2::holder::Owned>())
+            .unwrap();
+        let mut root = message.get_root_as_dynamic(schema).unwrap();
+        let mut a: v1::vec::AnyBuilder<'_> = root.reborrow().get_named("a").unwrap().downcast();
+        a.set_y(-2.0);
+        let r: v1::span::AnyBuilder<'_> = root.reborrow().get_named("r").unwrap().downcast();
+        r.get_br().set_y(-11.0);
+    }
+    let h = message
+        .get_root_as_reader::<v2::holder::Reader<'_>>()
+        .unwrap();
+    assert_eq!(
+        (h.get_a().get_x(), h.get_a().get_y(), h.get_a().get_z()),
+        (1.0, -2.0, 21.0)
+    );
+    assert_eq!(h.get_r().get_br().get_y(), -11.0);
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn loaded_evolution_tables_match_compiled() {
+    for (loader, compiled_holder) in [
+        (v1_loader(), compiled::<v1::holder::Owned>()),
+        (v2_loader(), compiled::<v2::holder::Owned>()),
+    ] {
+        let loaded = loader
+            .get_struct(compiled_holder.get_proto().get_id())
+            .unwrap();
+        assert_equivalent(compiled_holder, loaded, &mut HashSet::new());
+    }
+    // The repro from plans/newtype-evolution-fixes.md, a struct of its own.
+    for (loader, compiled_s) in [
+        (v1_loader(), compiled::<v1::s::Owned>()),
+        (v2_loader(), compiled::<v2::s::Owned>()),
+    ] {
+        let loaded = loader.get_struct(compiled_s.get_proto().get_id()).unwrap();
+        assert_equivalent(compiled_s, loaded, &mut HashSet::new());
+    }
 }
 
 #[test]

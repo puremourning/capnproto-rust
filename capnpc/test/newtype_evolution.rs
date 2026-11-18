@@ -34,7 +34,7 @@ use capnp::traits::{
 };
 use capnp::{dynamic_struct, dynamic_value, message};
 
-fn v1_message() -> message::Builder<message::HeapAllocator> {
+pub(crate) fn v1_message() -> message::Builder<message::HeapAllocator> {
     let mut message = message::Builder::new_default();
     let mut h = message.init_root::<v1::holder::Builder<'_>>();
     h.reborrow().get_a().set_x(1.0);
@@ -53,7 +53,7 @@ fn v1_message() -> message::Builder<message::HeapAllocator> {
     message
 }
 
-fn v2_message() -> message::Builder<message::HeapAllocator> {
+pub(crate) fn v2_message() -> message::Builder<message::HeapAllocator> {
     let mut message = message::Builder::new_default();
     let mut h = message.init_root::<v2::holder::Builder<'_>>();
     h.reborrow().get_a().set_x(1.0);
@@ -81,7 +81,7 @@ fn dynamic_root<'a>(reader: impl Into<dynamic_value::Reader<'a>>) -> dynamic_str
 }
 
 // The checks every version-1 carrier passes over a use site holding `v1_message`'s values.
-fn check_v1_view(
+pub(crate) fn check_v1_view(
     a: v1::vec::AnyReader<'_>,
     l: v1::labeled::AnyReader<'_>,
     s: v1::shape::AnyReader<'_>,
@@ -172,28 +172,32 @@ fn v1_use_site_through_v2_carriers() {
     );
 
     for (a, l, s, r) in [typed, dynamic] {
-        let (a, l, s, r): (
-            v2::vec::AnyReader<'_>,
-            v2::labeled::AnyReader<'_>,
-            v2::shape::AnyReader<'_>,
-            v2::span::AnyReader<'_>,
-        ) = (a, l, s, r);
-        // Old fields read as written; fields the table doesn't have read as defaults.
-        assert_eq!((a.get_x(), a.get_y(), a.get_z()), (1.0, 2.0, 0.0));
-        assert_eq!(l.get_id(), 3);
-        let pos = l.get_pos();
-        assert_eq!((pos.get_x(), pos.get_y(), pos.get_z()), (4.0, 5.0, 0.0));
-        assert!(!l.has_name());
-        assert_eq!(l.get_name().unwrap(), "");
-        match s.which().unwrap() {
-            v2::shape::Which::Point(p) => {
-                assert_eq!((p.get_x(), p.get_y(), p.get_z()), (6.0, 7.0, 0.0))
-            }
-            _ => panic!("expected point"),
-        }
-        assert_eq!((r.get_tl().get_x(), r.get_tl().get_y()), (8.0, 9.0));
-        assert_eq!((r.get_br().get_x(), r.get_br().get_y()), (10.0, 11.0));
+        check_v2_view_of_v1(a, l, s, r);
     }
+}
+
+// The checks every version-2 carrier passes over a use site holding `v1_message`'s values.
+pub(crate) fn check_v2_view_of_v1(
+    a: v2::vec::AnyReader<'_>,
+    l: v2::labeled::AnyReader<'_>,
+    s: v2::shape::AnyReader<'_>,
+    r: v2::span::AnyReader<'_>,
+) {
+    // Old fields read as written; fields the table doesn't have read as defaults.
+    assert_eq!((a.get_x(), a.get_y(), a.get_z()), (1.0, 2.0, 0.0));
+    assert_eq!(l.get_id(), 3);
+    let pos = l.get_pos();
+    assert_eq!((pos.get_x(), pos.get_y(), pos.get_z()), (4.0, 5.0, 0.0));
+    assert!(!l.has_name());
+    assert_eq!(l.get_name().unwrap(), "");
+    match s.which().unwrap() {
+        v2::shape::Which::Point(p) => {
+            assert_eq!((p.get_x(), p.get_y(), p.get_z()), (6.0, 7.0, 0.0))
+        }
+        _ => panic!("expected point"),
+    }
+    assert_eq!((r.get_tl().get_x(), r.get_tl().get_y()), (8.0, 9.0));
+    assert_eq!((r.get_br().get_x(), r.get_br().get_y()), (10.0, 11.0));
 }
 
 #[test]

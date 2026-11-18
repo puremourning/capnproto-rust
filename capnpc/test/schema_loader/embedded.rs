@@ -86,9 +86,15 @@ fn envelope_field_type(loader: &SchemaLoader, name: &str) -> Type {
 #[cfg_attr(miri, ignore)]
 fn each_embedded_schema_loads_on_its_own() {
     // test.capnp imports rust.capnp and another file, uses annotations and interfaces;
-    // in-submodule.capnp imports in-other-submodule.capnp.
+    // in-submodule.capnp imports in-other-submodule.capnp; test-newtype.capnp imports `type`
+    // newtypes from test-newtype-import.capnp.
     for (name, bytes) in [
         ("test", crate::test_capnp::SCHEMA_BYTES),
+        ("test-newtype", crate::test_newtype_capnp::SCHEMA_BYTES),
+        (
+            "test-newtype-import",
+            crate::test_newtype_import_capnp::SCHEMA_BYTES,
+        ),
         (
             "in-submodule",
             crate::foo::bar::in_submodule_capnp::SCHEMA_BYTES,
@@ -129,6 +135,15 @@ fn embedded_schemas_sharing_imports_load_one_after_another() {
     load_embedded(&loader, crate::baz::in_other_submodule_capnp::SCHEMA_BYTES).unwrap();
     load_embedded(&loader, crate::foo::bar::in_submodule_capnp::SCHEMA_BYTES).unwrap();
     load_embedded(&loader, crate::foo::bar::in_submodule_capnp::SCHEMA_BYTES).unwrap();
+}
+
+#[test]
+#[cfg_attr(miri, ignore)]
+fn embedded_newtype_schemas_sharing_imports_load_one_after_another() {
+    let loader = SchemaLoader::new();
+    load_embedded(&loader, crate::test_newtype_import_capnp::SCHEMA_BYTES).unwrap();
+    load_embedded(&loader, crate::test_newtype_capnp::SCHEMA_BYTES).unwrap();
+    load_embedded(&loader, crate::test_newtype_capnp::SCHEMA_BYTES).unwrap();
 }
 
 #[test]

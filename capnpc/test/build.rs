@@ -28,17 +28,18 @@ fn main() {
 
     // Two versions of an evolving newtype schema, for the cross-version tests in
     // newtype_evolution.rs. Their newtypes share ids, so each needs a run of its own.
-    for file in [
-        "test-newtype-evolution-v1.capnp",
-        "test-newtype-evolution-v2.capnp",
+    // Their raw requests are dumped for the schema loader's cross-version tests.
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
+    for (file, cgr) in [
+        ("test-newtype-evolution-v1.capnp", "evolution-v1.cgr"),
+        ("test-newtype-evolution-v2.capnp", "evolution-v2.cgr"),
     ] {
         capnpc::CompilerCommand::new()
             .file(file)
+            .raw_code_generator_request_path(format!("{out_dir}/{cgr}"))
             .run()
             .expect("compiling schema");
     }
-
-    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR env var is not set");
 
     // A small protocol the schema loader's downcast tests read both as generated code and as a
     // request of its own, so a test can load it into a fresh loader cheaply.

@@ -34,6 +34,7 @@ use capnp::schema_loader::SchemaLoader;
 use capnp::{data, dynamic_list, dynamic_struct, enum_list, message, struct_list, text};
 
 use super::{id_of, read_cgr, root_pointer};
+use crate::test_newtype_evolution_v1_capnp as v1;
 use crate::test_schema_loader_protocol_capnp::{
     Kind, chain, envelope, message as msg, outer, phantom, reply, request, uses_envelope,
 };
@@ -478,4 +479,31 @@ fn compiled_nodes_referring_to_unloaded_nodes_fail_to_load() {
             .get_struct(id_of::<test_use_generics::Owned>())
             .is_err()
     );
+}
+
+#[test]
+fn newtype_use_site_groups_downcast() {
+    let loader = SchemaLoader::new();
+    super::load_into(&loader, super::EVOLUTION_V1_CGR).unwrap();
+    let message = crate::newtype_evolution::v1_message();
+    let root = super::evolution_root(&loader, &message, id_of::<v1::holder::Owned>());
+    assert!(
+        field(root, "a")
+            .try_downcast::<v1::holder::a::Owned>()
+            .is_err()
+    );
+
+    loader.load_compiled::<v1::holder::Owned>().unwrap();
+    let holder = root.try_downcast::<v1::holder::Owned>().unwrap();
+    let a = field(root, "a")
+        .try_downcast::<v1::holder::a::Owned>()
+        .unwrap();
+    assert_eq!(a.get_x(), holder.get_a().get_x());
+    assert!(
+        field(root, "l")
+            .try_downcast::<v1::holder::a::Owned>()
+            .is_err()
+    );
+    // The newtype downcast is by id and doesn't need load_compiled; both work.
+    let _: v1::vec::AnyReader<'_> = root.get_named("a").unwrap().downcast();
 }
