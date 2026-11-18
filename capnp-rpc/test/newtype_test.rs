@@ -25,8 +25,10 @@
 //! checks the values round-trip. Access goes through the newtype traits (`vec3`, `order_type`) --
 //! the point of the feature -- rather than the per-use-site concrete accessors.
 
-use crate::test_newtype_capnp::{order_type, registry, vec3};
+use crate::test_newtype_capnp::{endpoint, order_type, registry, vec3};
 use capnp::Error;
+use capnp_rpc::{RpcSystem, rpc_twoparty_capnp, twoparty};
+use futures::{FutureExt, TryFutureExt};
 use std::rc::Rc;
 
 // Generic over any use site through the newtype's traits, so these work equally on a plain struct
@@ -50,6 +52,16 @@ fn cancel_of<'a>(ot: &impl order_type::Reader<'a>) -> i32 {
         order_type::Which::Cancel(n) => n,
         _ => panic!("expected Cancel arm"),
     }
+}
+
+// Calls `lookup` through a capability read out of a newtype, proving the cap table resolved it.
+async fn age_via(target: registry::Client, age: u16) -> Result<u16, Error> {
+    let mut request = target.lookup_request();
+    request.get().set_age(age);
+    Ok(request.send().promise.await?.get()?.get_found_age())
+}
+fn target_of<'a>(ep: &impl endpoint::Reader<'a>) -> Result<registry::Client, Error> {
+    ep.get_target()
 }
 
 struct RegistryImpl;
@@ -89,6 +101,30 @@ impl registry::Server for RegistryImpl {
         set_cancel(&mut results.get_kind(), 99); // order_type union-newtype result
         Ok(())
     }
+
+    async fn resolve(
+        self: Rc<Self>,
+        params: registry::ResolveParams,
+        mut results: registry::ResolveResults,
+    ) -> Result<(), Error> {
+        // Read the caller's capability out of the request through both the newtype trait and the
+        // erased carrier; each must resolve against the request's cap table.
+        let (name, via_trait, via_any) = {
+            let ep = params.get()?.get_ep();
+            let name = ep.get_name()?.to_string()?;
+            (name, target_of(&ep)?, ep.as_any().get_target()?)
+        };
+        if age_via(via_trait, 10).await? != 11 || age_via(via_any, 20).await? != 21 {
+            return Err(Error::failed(
+                "capability in request newtype misbehaved".into(),
+            ));
+        }
+        // Write a capability into the response through the erased builder carrier.
+        let mut ep = results.get().get_ep().as_any();
+        ep.set_name(format!("echo:{name}").as_str());
+        ep.set_target(capnp_rpc::new_client(RegistryImpl));
+        Ok(())
+    }
 }
 
 #[test]
@@ -123,4 +159,60 @@ fn newtype_in_method_params_and_results() {
         Ok::<(), Error>(())
     })
     .unwrap();
+}
+
+// Capabilities carried inside a group newtype, across a real two-party connection so the caps go
+// through the wire-level cap tables (imbued into the request/response readers and builders).
+#[test]
+fn newtype_carrying_capability_over_rpc() {
+    let mut pool = futures::executor::LocalPool::new();
+    let (client_writer, server_reader) = async_byte_channel::channel();
+    let (server_writer, client_reader) = async_byte_channel::channel();
+
+    let server = std::thread::spawn(move || {
+        let network = twoparty::VatNetwork::new(
+            server_reader,
+            server_writer,
+            rpc_twoparty_capnp::Side::Server,
+            Default::default(),
+        );
+        let bootstrap: registry::Client = capnp_rpc::new_client(RegistryImpl);
+        let rpc_system = RpcSystem::new(Box::new(network), Some(bootstrap.client));
+        futures::executor::block_on(rpc_system).unwrap();
+    });
+
+    let network = twoparty::VatNetwork::new(
+        client_reader,
+        client_writer,
+        rpc_twoparty_capnp::Side::Client,
+        Default::default(),
+    );
+    let mut rpc_system = RpcSystem::new(Box::new(network), None);
+    let remote: registry::Client = rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
+    let disconnector = rpc_system.get_disconnector();
+    futures::task::LocalSpawnExt::spawn_local(
+        &pool.spawner(),
+        rpc_system
+            .map_err(|e| panic!("rpc system: {e}"))
+            .map(|_| ()),
+    )
+    .unwrap();
+
+    pool.run_until(async move {
+        let mut request = remote.resolve_request();
+        {
+            // Write through the trait on the concrete per-use-site builder.
+            let mut ep = request.get().get_ep();
+            endpoint::Builder::set_name(&mut ep, "client");
+            endpoint::Builder::set_target(&mut ep, capnp_rpc::new_client(RegistryImpl));
+        }
+        let response = request.send().promise.await?;
+        let ep = response.get()?.get_ep();
+        assert_eq!(ep.get_name()?.to_str()?, "echo:client");
+        assert_eq!(age_via(target_of(&ep)?, 30).await?, 31);
+        assert_eq!(age_via(ep.as_any().get_target()?, 40).await?, 41);
+        disconnector.await
+    })
+    .unwrap();
+    server.join().unwrap();
 }

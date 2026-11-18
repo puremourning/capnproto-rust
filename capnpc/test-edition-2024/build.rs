@@ -5,4 +5,12 @@ fn main() {
         .src_prefix("../test/")
         .run()
         .expect("compiling schema");
+
+    // Newtype codegen (traits, erased carriers, use-site tables) compiled under edition 2024.
+    capnpc::CompilerCommand::new()
+        .file("../test/test-newtype.capnp")
+        .file("../test/test-newtype-import.capnp")
+        .src_prefix("../test/")
+        .run()
+        .expect("compiling newtype schema");
 }

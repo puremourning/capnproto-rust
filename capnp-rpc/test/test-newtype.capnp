@@ -47,9 +47,24 @@ struct PlaceResults {
   kind @[3, 4, 5, 6] :OrderType;        # union newtype in a response slot
 }
 
+type Endpoint = group { name @0 :Text; target @1 :Registry; }
+                                        # group newtype carrying a capability
+
+struct ResolveParams {
+  # A capability inside a group newtype in a request: the callee reads it back out of the
+  # request's cap table through the newtype accessors.
+  ep @[0-1] :Endpoint;
+}
+
+struct ResolveResults {
+  # ... and in a response, where it is written into the results' cap table.
+  ep @[0-1] :Endpoint;
+}
+
 interface Registry {
   # Newtypes in interface method parameter/result slots. Scalar newtypes may appear directly in an
   # inline parameter list; group/union newtypes come in via the named structs above.
   lookup @0 (id :Uuid, age :Age) -> (foundId :Uuid, foundAge :Age);
   place @1 PlaceParams -> PlaceResults;
+  resolve @2 ResolveParams -> ResolveResults;
 }
