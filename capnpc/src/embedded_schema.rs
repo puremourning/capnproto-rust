@@ -115,7 +115,7 @@ fn reached_files(ctx: &GeneratorContext, file: u64) -> capnp::Result<HashSet<u64
 }
 
 /// Every `UInt64` in `value`, which includes every node id a node refers to: references in
-/// schema.capnp (types, brands, annotations, superclasses, method structs, scopes) are
+/// schema.capnp (types, brands, annotations, superclasses, method structs, newtypes, scopes) are
 /// all `UInt64` ids. Values that aren't node ids are dropped by the caller, so over-collecting
 /// (a constant's value, say) at worst takes in a file that wasn't needed.
 fn referenced_ids(value: dynamic_value::Reader<'_>, out: &mut Vec<u64>) -> capnp::Result<()> {
