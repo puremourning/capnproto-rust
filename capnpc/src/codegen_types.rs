@@ -155,7 +155,13 @@ impl RustTypeInfo for type_::Reader<'_> {
         // A scalar `type` newtype: render the alias's name in place of the underlying type. The
         // alias module (emitted at the type node) provides Reader/Builder/Owned; a value newtype
         // has no lifetime, so only its pointer counterpart keeps `<'a>`.
-        if self.get_type_id() != 0 {
+        //
+        // An alias of an existing struct or interface (`type Bar = Foo;`) is transparent, like
+        // C++'s `using Bar = Foo;`: render the underlying (possibly branded) type, which keeps
+        // brands, Pipeline, Client, etc. correct without the alias module having to mirror them.
+        if self.get_type_id() != 0
+            && !matches!(self.which()?, type_::Struct(_) | type_::Interface(_))
+        {
             let m = ctx.get_qualified_module(self.get_type_id());
             let bare = module.bare_name();
             return Ok(match module {

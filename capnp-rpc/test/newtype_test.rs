@@ -25,7 +25,9 @@
 //! checks the values round-trip. Access goes through the newtype traits (`vec3`, `order_type`) --
 //! the point of the feature -- rather than the per-use-site concrete accessors.
 
-use crate::test_newtype_capnp::{endpoint, order_type, registry, vec3};
+use crate::test_newtype_capnp::{
+    endpoint, handle, holder, order_type, registry, text_holder, vec3,
+};
 use capnp::Error;
 use capnp_rpc::{RpcSystem, rpc_twoparty_capnp, twoparty};
 use futures::{FutureExt, TryFutureExt};
@@ -65,6 +67,19 @@ fn target_of<'a>(ep: &impl endpoint::Reader<'a>) -> Result<registry::Client, Err
 }
 
 struct RegistryImpl;
+
+struct HolderImpl(&'static str);
+
+impl holder::Server<capnp::text::Owned> for HolderImpl {
+    async fn get(
+        self: Rc<Self>,
+        _: holder::GetParams<capnp::text::Owned>,
+        mut results: holder::GetResults<capnp::text::Owned>,
+    ) -> Result<(), Error> {
+        results.get().set_value(self.0)?;
+        Ok(())
+    }
+}
 
 impl registry::Server for RegistryImpl {
     async fn lookup(
@@ -123,6 +138,25 @@ impl registry::Server for RegistryImpl {
         let mut ep = results.get().get_ep().as_any();
         ep.set_name(format!("echo:{name}").as_str());
         ep.set_target(capnp_rpc::new_client(RegistryImpl));
+        Ok(())
+    }
+
+    async fn pass(
+        self: Rc<Self>,
+        params: registry::PassParams,
+        mut results: registry::PassResults,
+    ) -> Result<(), Error> {
+        let (h, holder): (handle::Client, text_holder::Client) = {
+            let params = params.get()?;
+            (params.get_handle()?, params.get_holder()?)
+        };
+        if age_via(h.clone(), 1).await? != 2 {
+            return Err(Error::failed("interface alias cap misbehaved".into()));
+        }
+        let said = holder.get_request().send().promise.await?;
+        let mut results = results.get();
+        results.set_said(said.get()?.get_value()?);
+        results.set_handle(h); // echo the caller's cap back through the alias
         Ok(())
     }
 }
@@ -211,6 +245,21 @@ fn newtype_carrying_capability_over_rpc() {
         assert_eq!(ep.get_name()?.to_str()?, "echo:client");
         assert_eq!(age_via(target_of(&ep)?, 30).await?, 31);
         assert_eq!(age_via(ep.as_any().get_target()?, 40).await?, 41);
+
+        // Transparent interface aliases (plain and branded) as method params/results.
+        let mut request = remote.pass_request();
+        {
+            let mut params = request.get();
+            let h: handle::Client = capnp_rpc::new_client(RegistryImpl);
+            params.set_handle(h);
+            let t: text_holder::Client = capnp_rpc::new_client(HolderImpl("hello"));
+            params.set_holder(t);
+        }
+        let response = request.send().promise.await?;
+        let results = response.get()?;
+        assert_eq!(results.get_said()?.to_str()?, "hello");
+        let back: registry::Client = results.get_handle()?; // same type as handle::Client
+        assert_eq!(age_via(back, 50).await?, 51);
         disconnector.await
     })
     .unwrap();

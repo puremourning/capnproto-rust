@@ -150,3 +150,25 @@ struct Envelope(Body) {
   prices @[4-7] :OrderPrices;
   order @[8-11] :OrderType;
 }
+
+# Aliases of existing (non-newtype) structs and interfaces are transparent, like C++'s
+# `using Bar = Foo;`: use sites take the underlying type, and the alias module names it.
+type ForwardStruct = LaterStruct;       # alias declared before its target
+struct AliasTarget { x @0 :UInt32; label @1 :Text; }
+struct LaterStruct { y @0 :Int16; }
+struct GenericTarget(T) { value @0 :T; }
+type StructAlias = AliasTarget;
+type StructAliasAlias = StructAlias;    # alias of an alias
+type BrandedAlias = GenericTarget(Text);
+interface Pinger { ping @0 () -> (n :UInt32); }
+type PingerAlias = Pinger;
+
+struct StructAliases {
+  plain @0 :StructAlias;
+  forward @1 :ForwardStruct;
+  chained @2 :StructAliasAlias;
+  branded @3 :BrandedAlias;
+  list @4 :List(StructAlias);
+  dflt @5 :StructAlias = (x = 7, label = "dflt");
+  pinger @6 :PingerAlias;
+}

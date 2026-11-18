@@ -61,10 +61,17 @@ struct ResolveResults {
   ep @[0-1] :Endpoint;
 }
 
+# Aliases of existing interfaces are transparent (like C++'s `using`): `handle::Client` is
+# `registry::Client`. `Handle` is declared before its target on purpose.
+type Handle = Registry;
+interface Holder(T) { get @0 () -> (value :T); }
+type TextHolder = Holder(Text);         # branded interface alias
+
 interface Registry {
   # Newtypes in interface method parameter/result slots. Scalar newtypes may appear directly in an
   # inline parameter list; group/union newtypes come in via the named structs above.
   lookup @0 (id :Uuid, age :Age) -> (foundId :Uuid, foundAge :Age);
   place @1 PlaceParams -> PlaceResults;
   resolve @2 ResolveParams -> ResolveResults;
+  pass @3 (handle :Handle, holder :TextHolder) -> (handle :Handle, said :Text);
 }

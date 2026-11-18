@@ -3455,10 +3455,49 @@ fn generate_scalar_newtype_alias(
     if newtype_template_id(ctx, node_id)?.is_some() {
         return Ok(Branch(vec![]));
     }
-    if matches!(t.which()?, type_::Struct(_) | type_::Interface(_)) {
-        return Ok(Branch(vec![]));
-    }
     let module = module_name(node_name);
+    // An alias of an existing struct or interface. Use sites render the underlying type (see
+    // `type_string`); this module just lets user code name the alias. Unbranded, re-export the
+    // target module wholesale (Reader/Builder/Owned/Pipeline, or Client/Server/ServerDispatch);
+    // branded, bind the brand in type aliases (traits such as Server cannot be aliased).
+    let target = match t.which()? {
+        type_::Struct(st) => Some((st.get_type_id(), st.get_brand()?, false)),
+        type_::Interface(i) => Some((i.get_type_id(), i.get_brand()?, true)),
+        _ => None,
+    };
+    if let Some((target_id, brand, is_interface)) = target {
+        let items = if brand.get_scopes()?.is_empty() {
+            vec![Line(format!(
+                "pub use {}::*;",
+                ctx.get_qualified_module(target_id)
+            ))]
+        } else {
+            let mut leaves = vec![("Owned", Leaf::Owned)];
+            if is_interface {
+                leaves.push(("Client", Leaf::Client));
+            } else {
+                leaves.push(("Reader<'a>", Leaf::Reader("'a")));
+                leaves.push(("Builder<'a>", Leaf::Builder("'a")));
+                leaves.push(("Pipeline", Leaf::Pipeline));
+            }
+            leaves
+                .into_iter()
+                .map(|(name, leaf)| {
+                    Ok(Line(format!(
+                        "pub type {name} = {};",
+                        t.type_string(ctx, leaf)?
+                    )))
+                })
+                .collect::<::capnp::Result<Vec<_>>>()?
+        };
+        return Ok(Branch(vec![
+            BlankLine,
+            Line(format!("pub mod {module} {{")),
+            indent(newtype_type_id_line(node_id)),
+            indent(items),
+            line("}"),
+        ]));
+    }
     let items = if t.is_pointer()? {
         vec![
             Line(format!(

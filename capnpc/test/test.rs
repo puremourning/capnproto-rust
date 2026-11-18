@@ -2790,6 +2790,77 @@ mod tests {
     }
 
     #[test]
+    fn newtype_struct_and_interface_aliases() {
+        // Aliases of existing structs/interfaces are transparent: the alias module re-exports the
+        // target (or binds its brand), so both names denote the same types.
+        use crate::test_newtype_capnp::{
+            alias_target, branded_alias, forward_struct, generic_target, later_struct,
+            pinger_alias, struct_alias, struct_alias_alias, struct_aliases,
+        };
+        fn same<T>(_: core::marker::PhantomData<T>, _: core::marker::PhantomData<T>) {}
+        use core::marker::PhantomData as P;
+        same(P::<struct_alias::Owned>, P::<alias_target::Owned>);
+        same(P::<struct_alias_alias::Owned>, P::<alias_target::Owned>);
+        same(P::<forward_struct::Owned>, P::<later_struct::Owned>);
+        same(
+            P::<branded_alias::Owned>,
+            P::<generic_target::Owned<capnp::text::Owned>>,
+        );
+        same(
+            P::<pinger_alias::Client>,
+            P::<crate::test_newtype_capnp::pinger::Client>,
+        );
+        // Each alias keeps its own node id (the explicit const shadows the glob re-export).
+        assert_ne!(struct_alias::TYPE_ID, struct_alias_alias::TYPE_ID);
+
+        let mut message = ::capnp::message::Builder::new_default();
+        let mut root = message.init_root::<struct_aliases::Builder<'_>>();
+        {
+            let mut plain: struct_alias::Builder<'_> = root.reborrow().init_plain();
+            plain.set_x(1);
+            plain.set_label("one");
+        }
+        root.reborrow().init_forward().set_y(-2);
+        root.reborrow().init_chained().set_x(3);
+        root.reborrow().init_branded().set_value("four").unwrap();
+        {
+            let mut list = root.reborrow().init_list(2);
+            list.reborrow().get(1).set_x(5);
+        }
+
+        let reader = root.into_reader();
+        let plain: struct_alias::Reader<'_> = reader.get_plain().unwrap();
+        assert_eq!(plain.get_x(), 1);
+        assert_eq!(plain.get_label().unwrap(), "one");
+        let forward: forward_struct::Reader<'_> = reader.get_forward().unwrap();
+        assert_eq!(forward.get_y(), -2);
+        assert_eq!(reader.get_chained().unwrap().get_x(), 3);
+        let branded: branded_alias::Reader<'_> = reader.get_branded().unwrap();
+        assert_eq!(branded.get_value().unwrap(), "four");
+        assert_eq!(reader.get_list().unwrap().get(1).get_x(), 5);
+        let dflt = reader.get_dflt().unwrap();
+        assert_eq!(
+            (dflt.get_x(), dflt.get_label().unwrap().to_str().unwrap()),
+            (7, "dflt")
+        );
+        assert!(!reader.has_pinger());
+
+        // The alias is invisible in the Rust types but still reported at runtime, nearest first.
+        use capnp::introspect::{Introspect, TypeVariant};
+        let TypeVariant::Struct(raw) = struct_aliases::Owned::introspect().which() else {
+            panic!("not a struct");
+        };
+        let schema = capnp::schema::StructSchema::new(raw);
+        let ids = |name| schema.get_field_by_name(name).unwrap().get_newtype_ids();
+        assert_eq!(ids("plain"), &[struct_alias::TYPE_ID]);
+        assert_eq!(
+            ids("chained"),
+            &[struct_alias_alias::TYPE_ID, struct_alias::TYPE_ID]
+        );
+        assert_eq!(ids("pinger"), &[pinger_alias::TYPE_ID]);
+    }
+
+    #[test]
     fn newtype_nested_members() {
         // A newtype whose members are themselves newtypes: `get_limit()`/`get_stop()` return the
         // nested `Price` trait (via associated types), so the whole thing composes generically.
