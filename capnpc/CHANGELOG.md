@@ -19,6 +19,7 @@ Requires the matching (unreleased) capnp-newtype; regenerate existing generated 
   - Simplify generated code for capability getters.
   - Fix bug where type parameters were generated in nondeterministic
     order in certain situations involving nested scopes.
+- Emit a per-level `UseSiteTable` for each newtype use site, replacing `*_OFFSETS` slices.
 
 ## v0.27.2
 - Fix bug where newtypes in generic structs did not include their generic types

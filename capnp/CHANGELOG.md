@@ -34,6 +34,12 @@ regenerate it with the matching capnpc-newtype.
   - Change several `capnp::private` items from `pub` visibility to `pub(crate)` visibility.
   - Bump capnp schema files to the latest from the upstream v2 branch.
   - Bump minimium required rust version to 1.87.0.
+- **Breaking:** newtype erased carriers (`AnyReader`/`AnyBuilder`) read a use site through
+  per-level `traits::UseSiteTable`s, one entry per template field, indexed by its position in
+  the template's field list (stable when a schema evolves), instead of flat `*_OFFSETS` slices.
+  An entry past the end of a table, or of the wrong kind, is unmapped: reads give the default,
+  `has_*` is false and setters panic. Extra entries are ignored. `LEAF_COUNT` is gone, and
+  `AnyReader/AnyBuilder::from_use_site` take the table.
 
 ## v0.27.4
 - In dynamic API, all downcasting newtypes to their AnyReader/AnyBuilder
