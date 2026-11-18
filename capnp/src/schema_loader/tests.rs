@@ -683,6 +683,10 @@ fn rejects_wrong_kind_reference() {
             .get(0)
             .set_id(SHAPE);
     });
+    // A newtype id naming a struct.
+    assert_rejected("as a `type` newtype, but it is a struct", |nodes| {
+        field_of(nodes, POINT_IX, 0).set_type_id(POINT);
+    });
 }
 
 #[test]
@@ -809,6 +813,25 @@ fn rejects_bad_generics() {
     assert_rejected("isGeneric", |nodes| {
         nodes.reborrow().get(BOX_IX).set_is_generic(false);
     });
+}
+
+#[test]
+fn rejects_alias_cycles() {
+    let loader = SchemaLoader::new();
+    let mut message = message::Builder::new_default();
+    let mut list: struct_list::Builder<'_, node::Owned> = message.initn_root(3);
+    let mut file = list.reborrow().get(0);
+    node_header(file.reborrow(), FILE, 0, "f");
+    file.set_file(());
+    for (i, (id, aliased)) in [(0x2001, 0x2002), (0x2002, 0x2001)].into_iter().enumerate() {
+        let mut n = list.reborrow().get(i as u32 + 1);
+        node_header(n.reborrow(), id, FILE, "alias");
+        let mut t = n.init_type();
+        t.set_type_id(aliased);
+        t.set_text(());
+    }
+    let err = loader.load(list.into_reader()).unwrap_err();
+    assert!(format!("{err}").contains("alias cycle"), "{err}");
 }
 
 #[test]

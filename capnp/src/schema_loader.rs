@@ -82,10 +82,10 @@
 //! Loading validates its input, which may be untrusted. Every node of a batch is checked so
 //! that nothing in [`crate::schema`] or the dynamic API can panic or loop forever on it: member
 //! counts and discriminants, field offsets against the declared section sizes, default values
-//! against field types, group nodes against their parents, generic parameter references, and
-//! every node a batch references (field types, brand bindings, groups, annotations) must be
-//! loaded, or in the batch, and be of the right kind. If any check fails, the whole batch fails
-//! and nothing is loaded.
+//! against field types, group nodes against their parents, generic parameter references, alias
+//! chains, and every node a batch references (field types, brand bindings, groups,
+//! annotations, newtypes) must be loaded, or in the batch, and be of the right kind. If any
+//! check fails, the whole batch fails and nothing is loaded.
 //!
 //! As in C++, a node of a kind the loader doesn't model (one from a newer schema.capnp, say) is
 //! loaded and can be looked up with [`SchemaLoader::get_node`], but nothing may refer to it.
@@ -125,6 +125,7 @@ use crate::introspect::{
 };
 use crate::private::arena::GeneratedCodeArena;
 use crate::private::layout;
+use crate::private::newtype_layout::{self, NodeLookup, UseSiteLayout};
 use crate::schema::{EnumSchema, StructSchema};
 use crate::schema_capnp::{annotation, brand, code_generator_request, field, node, type_, value};
 use crate::{Error, Result, Word, message};
@@ -200,7 +201,7 @@ impl SchemaLoader {
     ///   (canonically encoded), or this fails;
     /// - otherwise the compiled node is loaded, as by [`load`](Self::load), so later batches
     ///   can refer to it. That fails, loading nothing, if the node refers to nodes generated
-    ///   code doesn't carry (annotations, interfaces) and that aren't loaded.
+    ///   code doesn't carry (annotations, `type` newtypes, interfaces) and that aren't loaded.
     ///
     /// The instance of each loaded struct that corresponds to a compiled one reached
     /// (`Message(Request(Text))` for `message::Owned<request::Owned<text::Owned>>`) is
@@ -498,6 +499,7 @@ enum Kind {
     Interface,
     Const,
     Annotation,
+    Type,
     /// A node kind the loader doesn't model.
     Other,
 }
@@ -511,6 +513,7 @@ impl Kind {
             Ok(node::Interface(_)) => Kind::Interface,
             Ok(node::Const(_)) => Kind::Const,
             Ok(node::Annotation(_)) => Kind::Annotation,
+            Ok(node::Type(_)) => Kind::Type,
             // Kinds this schema.capnp knows but the loader doesn't model, and kinds from a newer
             // schema.capnp.
             #[allow(unreachable_patterns)]
@@ -526,6 +529,7 @@ impl Kind {
             Kind::Interface => "an interface",
             Kind::Const => "a const",
             Kind::Annotation => "an annotation",
+            Kind::Type => "a `type` newtype",
             Kind::Other => "a node of a kind the loader doesn't model",
         }
     }
@@ -838,6 +842,12 @@ impl<'a> Graph<'a> for Batch<'a> {
     }
 }
 
+impl<'a> NodeLookup<'a> for Batch<'a> {
+    fn node(&self, id: u64) -> Option<node::Reader<'a>> {
+        self.nodes.get(&id).copied()
+    }
+}
+
 /// What load computes for a new node before anything is committed.
 struct Prepared {
     id: u64,
@@ -851,6 +861,8 @@ struct StructTables {
     nonunion_members: Vec<u16>,
     members_by_discriminant: Vec<u16>,
     members_by_name: Vec<u16>,
+    field_newtypes: Option<Vec<Vec<u64>>>,
+    layout: Option<UseSiteLayout>,
 }
 
 impl Inner {
@@ -923,13 +935,20 @@ impl Inner {
                 Box::leak(Box::new(GeneratedCodeArena::new(words)));
             let scopes = leak_slice(p.scopes);
             let raw = p.tables.map(|t| {
-                let raw = RawStructSchema::new(
+                let mut raw = RawStructSchema::new(
                     arena,
                     leak_slice(t.nonunion_members),
                     leak_slice(t.members_by_discriminant),
                     leak_slice(t.members_by_name),
                 )
                 .with_brand_scopes(scopes);
+                if let Some(f) = t.field_newtypes {
+                    raw = raw
+                        .with_field_newtypes(leak_slice(f.into_iter().map(leak_slice).collect()));
+                }
+                if let Some(layout) = t.layout {
+                    raw = raw.with_any_layout(leak_slice(layout.newtype_ids), layout.table.leak());
+                }
                 &*Box::leak(Box::new(raw))
             });
             let node: &'static LoadedNode = Box::leak(Box::new(LoadedNode {
@@ -1502,6 +1521,10 @@ fn check_type<'a>(
             type_::any_pointer::ImplicitMethodParameter(_) => {}
         },
     }
+    let newtype = ty.get_type_id();
+    if newtype != 0 {
+        expect_kind(graph, newtype, Kind::Type)?;
+    }
     Ok(())
 }
 
@@ -1739,6 +1762,25 @@ fn prepare_node<'a>(
             check_value(ty, c.get_value()?)?;
         }
         node::Annotation(a) => check_type(graph, a.get_type()?, &scopes, true, 0)?,
+        node::Type(t) => {
+            let t = t?;
+            check_type(graph, t, &scopes, true, 0)?;
+            // Alias chains (`type B = A`) must end.
+            let mut seen = vec![id];
+            let mut alias = t.get_type_id();
+            while alias != 0 {
+                if seen.contains(&alias) {
+                    return Err(failed(format!(
+                        "schema loader: newtype {id:#x} is part of an alias cycle"
+                    )));
+                }
+                seen.push(alias);
+                let node::Type(aliased) = expect_kind(graph, alias, Kind::Type)?.which()? else {
+                    unreachable!()
+                };
+                alias = aliased?.get_type_id();
+            }
+        }
         // Handled above.
         #[allow(unreachable_patterns)]
         _ => {}
@@ -1814,6 +1856,9 @@ fn check_struct<'a>(
         }
 
         check_annotations(graph, f.get_annotations()?, scopes)?;
+        if f.get_type_id() != 0 {
+            expect_kind(graph, f.get_type_id(), Kind::Type)?;
+        }
         match f.which()? {
             field::Slot(slot) => {
                 let ty = slot.get_type()?;
@@ -1864,10 +1909,21 @@ fn check_struct<'a>(
     // The tables, as capnpc's codegen computes them (`generate_members_by_*`).
     union_members.sort_unstable();
     by_name.sort_by_key(|(name, _)| *name);
+    let mut field_newtypes = Vec::new();
+    for f in fields {
+        field_newtypes.push(newtype_layout::field_newtype_ids(graph, f)?);
+    }
+    let field_newtypes = if field_newtypes.iter().any(|ids| !ids.is_empty()) {
+        Some(field_newtypes)
+    } else {
+        None
+    };
     Ok(StructTables {
         nonunion_members,
         members_by_discriminant: union_members.into_iter().map(|(_, i)| i).collect(),
         members_by_name: by_name.into_iter().map(|(_, i)| i).collect(),
+        field_newtypes,
+        layout: newtype_layout::use_site_layout(graph, node)?,
     })
 }
 
