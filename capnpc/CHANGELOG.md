@@ -1,3 +1,10 @@
+## v0.28.1
+- Merge upstream capnpc v0.28.0 and v0.28.1:
+  - Adjust generated code for updated `imbue()` API in base crate.
+  - Simplify generated code for capability getters.
+  - Fix bug where type parameters were generated in nondeterministic
+    order in certain situations involving nested scopes.
+
 ## v0.27.2
 - Fix bug where newtypes in generic structs did not include their generic types
 

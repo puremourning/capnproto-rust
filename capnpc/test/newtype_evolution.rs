@@ -29,8 +29,8 @@
 use crate::test_newtype_evolution_v1_capnp as v1;
 use crate::test_newtype_evolution_v2_capnp as v2;
 use capnp::traits::{
-    IntoInternalStructBuilder, IntoInternalStructReader, UseSiteEntry, UseSiteTable,
-    EMPTY_USE_SITE_TABLE, UNMAPPED,
+    EMPTY_USE_SITE_TABLE, IntoInternalStructBuilder, IntoInternalStructReader, UNMAPPED,
+    UseSiteEntry, UseSiteTable,
 };
 use capnp::{dynamic_struct, dynamic_value, message};
 

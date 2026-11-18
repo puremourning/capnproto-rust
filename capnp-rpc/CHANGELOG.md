@@ -1,3 +1,24 @@
+## v0.28.0
+- By default, log background errors to stderr instead of stdout.
+
+## v0.27.5
+- Avoid possible "message loop outlived connection state?" panic on shutdown.
+
+## v0.27.4
+- Add RpcSystem::set_background_error_handler().
+- In default background error handler, use writeln!() instead of println!(), to
+  avoid panics.
+
+## v0.27.3
+- Add disconnect() error propagation to prevent possible never-resolving promises.
+
+## v0.27.2
+- Avoid possible unreachable() panic on reentrant disconnect().
+
+## v0.27.1
+- Prioritize cancellation in eagerly_evaluate(), fixing a possible error of the
+  form "import ID … is not a promise"
+
 ## v0.27.0
 - Make `Disconnector` wait until the connection's `shutdown()` completes.
 

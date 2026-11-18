@@ -1,13 +1,14 @@
 [package]
 
 name = "capnpc-newtype"
-version = "0.27.2"
+version = "0.28.1"
 authors = [ "David Renshaw <dwrenshaw@gmail.com>", "Ben Jackson <puremourning@gmail.com>" ]
 license = "MIT"
 description = "Cap'n Proto code generation with newtype support"
 repository = "https://github.com/puremourning/capnproto-rust"
 documentation = "https://docs.rs/capnpc-newtype/"
-edition = "2021"
+edition = "2024"
+rust-version.workspace = true
 
 readme = "README.md"
 
@@ -29,7 +30,7 @@ path = "src/capnpc-rust-bootstrap.rs"
 
 [dependencies.capnp]
 package = "capnp-newtype"
-version = "0.27.3"
+version = "0.28.0"
 path = "../capnp"
 
 [lints]
