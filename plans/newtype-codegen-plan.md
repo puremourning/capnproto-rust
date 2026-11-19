@@ -147,6 +147,15 @@ closes it with the same mechanism C++ uses.
 
 ### 4. Erased carrier — `AnyReader` / `AnyBuilder` (the runtime offset table)
 
+> **Superseded representation (7dd34914).** The flat, tree-ordered `OFFSETS` / `*_OFFSETS`
+> slices and nested `[start..end]` slicing described below were replaced by per-level
+> `capnp::traits::UseSiteTable`s: one `UseSiteEntry` per template field, indexed by its position in
+> the template's `fields` list (a slot offset or `UNMAPPED`, or a pointer to a nested use site's own
+> table; union tables carry the discriminant offset). Lookups are bounds-checked, so a table from
+> another schema version reads unknown/missing entries as unmapped. See
+> `plans/newtype-evolution-fixes.md` and `capnp::traits::UseSiteTable`; the text below is kept for
+> the design rationale only.
+
 The faithful mirror of C++'s `AnyReader`: a concrete struct holding the `StructReader` plus a
 **runtime** offset slice. Because it is a single concrete type (offsets are data, not type
 parameters), it unifies across all use sites, and — critically — its nested-arm accessors return
@@ -257,7 +266,7 @@ erasure as an extra for flat newtypes on top.
    and `which()` with the literal discriminant offset (`codegen.rs:1393/1506`). For a union
    newtype, additionally emit the `order_type` trait + associated types and impl it for the
    per-site union module.
-5. **Erased carrier** — emitted alongside the traits in hook (2): the `AnyReader`/`AnyBuilder`
+5. **Erased carrier** (offset tables now per-level `UseSiteTable`s; see the note in §4) — emitted alongside the traits in hook (2): the `AnyReader`/`AnyBuilder`
    structs, their trait impls, and (in hook (3)/(4)) the per-use-site `static OFFSETS` table +
    `as_any()`/`as_any_builder()`. A single `for_each_leaf(template)` helper (new) drives the
    `OFFSETS` order, the carrier accessors' indices, and the nested slice bounds so they can't
@@ -373,6 +382,8 @@ unbreaking the build.
   from R4 for the "any source" bound; C++: a `setX(Vec3::AnyReader)` added to `makeFieldText`).
   Depends on R4.
 - **R4 — Erased carrier (`AnyReader`/`AnyBuilder`).** The runtime offset table.
+  (*Later replaced:* the `*_OFFSETS` slices below are now per-level `UseSiteTable`s, 7dd34914;
+  see the note in §4.)
   - *Flat `AnyReader`. DONE.* `getter_text` was generalized to `getter_text_at(..., offset_override)`
     so accessor bodies can index `self.offsets[i] as usize` instead of a baked literal (the one
     change; `getter_text` is now a `None` wrapper — no caller churn, existing 83 tests unchanged).
