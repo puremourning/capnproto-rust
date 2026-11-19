@@ -896,61 +896,71 @@ fn exercise(loader: &SchemaLoader, ids: &[u64], data: &[Word]) {
     }
 }
 
+/// Loads the valid batch with each `(node, word, value)` corruption applied (one byte flipped),
+/// and exercises whatever loads on `data`. Nothing may panic.
+fn corruption_case(corruptions: Vec<(u8, u16, u64)>, data: Vec<u64>) -> quickcheck::TestResult {
+    use quickcheck::TestResult;
+    let message = batch(|_| {});
+    let list = nodes(&message);
+    let mut copies: Vec<Vec<Word>> = list.iter().map(|n| canonical_copy(n).unwrap()).collect();
+    // One or two small corruptions per case, so that a fair share still loads.
+    for (node, word, value) in corruptions.into_iter().take(2) {
+        let n = copies.len();
+        let copy = &mut copies[usize::from(node) % n];
+        // Leave the root pointer alone, so the node is still readable as a struct.
+        if copy.len() > 1 {
+            let i = 1 + usize::from(word) % (copy.len() - 1);
+            let bytes = Word::words_to_bytes_mut(&mut copy[i..=i]);
+            // Mostly small corruptions: flip one byte.
+            let b = (value % 8) as usize;
+            bytes[b] ^= ((value >> 8) as u8) | 1;
+        }
+    }
+    let readers: Vec<_> = copies
+        .iter()
+        .map(|c| message::Reader::new(vec![Word::words_to_bytes(c)], Default::default()))
+        .collect();
+    let mut node_readers = Vec::new();
+    for r in &readers {
+        match r.get_root::<node::Reader<'_>>() {
+            Ok(n) => node_readers.push(n),
+            Err(_) => return TestResult::discard(),
+        }
+    }
+    let loader = SchemaLoader::new();
+    if loader.load(node_readers).is_ok() {
+        let mut data: Vec<Word> = data
+            .into_iter()
+            .map(|w| Word {
+                raw_content: w.to_le_bytes(),
+            })
+            .collect();
+        if data.is_empty() {
+            data.push(Word {
+                raw_content: [0; 8],
+            });
+        }
+        exercise(&loader, &[POINT, SHAPE, SHAPE_INFO, BOX, USE], &data);
+    }
+    TestResult::passed()
+}
+
 #[test]
 fn corrupted_nodes_do_not_panic() {
     use quickcheck::{QuickCheck, TestResult};
-
-    fn prop(corruptions: Vec<(u8, u16, u64)>, data: Vec<u64>) -> TestResult {
-        let message = batch(|_| {});
-        let list = nodes(&message);
-        let mut copies: Vec<Vec<Word>> = list.iter().map(|n| canonical_copy(n).unwrap()).collect();
-        // One or two small corruptions per case, so that a fair share still loads.
-        for (node, word, value) in corruptions.into_iter().take(2) {
-            let n = copies.len();
-            let copy = &mut copies[usize::from(node) % n];
-            // Leave the root pointer alone, so the node is still readable as a struct.
-            if copy.len() > 1 {
-                let i = 1 + usize::from(word) % (copy.len() - 1);
-                let bytes = Word::words_to_bytes_mut(&mut copy[i..=i]);
-                // Mostly small corruptions: flip one byte.
-                let b = (value % 8) as usize;
-                bytes[b] ^= ((value >> 8) as u8) | 1;
-            }
-        }
-        let readers: Vec<_> = copies
-            .iter()
-            .map(|c| message::Reader::new(vec![Word::words_to_bytes(c)], Default::default()))
-            .collect();
-        let mut node_readers = Vec::new();
-        for r in &readers {
-            match r.get_root::<node::Reader<'_>>() {
-                Ok(n) => node_readers.push(n),
-                Err(_) => return TestResult::discard(),
-            }
-        }
-        let loader = SchemaLoader::new();
-        if loader.load(node_readers).is_ok() {
-            let mut data: Vec<Word> = data
-                .into_iter()
-                .map(|w| Word {
-                    raw_content: w.to_le_bytes(),
-                })
-                .collect();
-            if data.is_empty() {
-                data.push(Word {
-                    raw_content: [0; 8],
-                });
-            }
-            exercise(&loader, &[POINT, SHAPE, SHAPE_INFO, BOX, USE], &data);
-        }
-        TestResult::passed()
-    }
 
     let tests = if cfg!(miri) { 4 } else { 1000 };
     QuickCheck::new()
         .tests(tests)
         .max_tests(tests * 10)
-        .quickcheck(prop as fn(Vec<(u8, u16, u64)>, Vec<u64>) -> TestResult);
+        .quickcheck(corruption_case as fn(Vec<(u8, u16, u64)>, Vec<u64>) -> TestResult);
+}
+
+#[test]
+fn overlapping_fields_do_not_panic() {
+    // Found by `corrupted_nodes_do_not_panic`: Point's `label` (Text) moved onto `next`'s
+    // pointer, so after writing one, reading the other fails. Printing it must not panic.
+    assert!(!corruption_case(vec![(9, 27677, 1762483383464689668)], vec![]).is_failure());
 }
 
 #[test]
